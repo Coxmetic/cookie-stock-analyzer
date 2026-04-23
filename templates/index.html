@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cookie Clicker — Stock Market Analyzer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+:root {
+  --bg:#0a0c10; --surface:#111520; --surface2:#181e2e; --border:#1f2d4a;
+  --accent:#f4c842; --green:#3dd68c; --red:#ff4d6a; --muted:#4a5a7a;
+  --text:#d0daf0; --dim:#6a7a9a;
+  --font-mono:'Share Tech Mono',monospace; --font-head:'Orbitron',monospace;
+  --glow:0 0 20px rgba(244,200,66,.25);
+  --blue:#4a9eff; --purple:#b97aff;
+}
+body { background:var(--bg); color:var(--text); font-family:var(--font-mono); font-size:13px; min-height:100vh; }
+body::before { content:''; position:fixed; inset:0; background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.07) 2px,rgba(0,0,0,.07) 4px); pointer-events:none; z-index:9999; }
+header { padding:28px 40px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:18px; background:linear-gradient(90deg,rgba(244,200,66,.06) 0%,transparent 60%); flex-wrap:wrap; }
+.server-status { margin-left:auto; display:flex; align-items:center; gap:8px; font-family:var(--font-head); font-size:9px; letter-spacing:2px; text-transform:uppercase; }
+.server-dot { width:8px; height:8px; border-radius:50%; background:var(--muted); flex-shrink:0; }
+.server-dot.ok  { background:var(--green); box-shadow:0 0 6px var(--green); }
+.server-dot.err { background:var(--red);   box-shadow:0 0 6px var(--red); }
+.backend-down { background:rgba(255,77,106,.1); border:1px solid rgba(255,77,106,.4); border-radius:6px; padding:14px 18px; margin-bottom:20px; font-size:12px; color:var(--red); line-height:1.8; }
+.cookie-icon { font-size:36px; filter:drop-shadow(0 0 12px rgba(244,200,66,.6)); }
+.header-text h1 { font-family:var(--font-head); font-size:18px; font-weight:900; color:var(--accent); letter-spacing:3px; text-transform:uppercase; text-shadow:var(--glow); }
+.header-text p { color:var(--dim); font-size:11px; letter-spacing:1px; margin-top:3px; }
+main { padding:30px 40px; max-width:1400px; margin:0 auto; }
+.input-section { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:24px; margin-bottom:28px; }
+.input-section label { display:block; font-family:var(--font-head); font-size:10px; letter-spacing:2px; color:var(--accent); margin-bottom:10px; }
+textarea { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:4px; color:var(--dim); font-family:var(--font-mono); font-size:11px; padding:12px; resize:vertical; min-height:80px; transition:border-color .2s; outline:none; }
+textarea:focus { border-color:var(--accent); }
+input[type=file] { display:none; }
+.file-label { display:inline-flex; align-items:center; gap:8px; font-family:var(--font-head); font-size:10px; letter-spacing:2px; padding:10px 22px; border:1px solid var(--border); border-radius:4px; cursor:pointer; text-transform:uppercase; color:var(--dim); transition:all .15s; }
+.file-label:hover { border-color:var(--accent); color:var(--accent); }
+.btn-row { display:flex; gap:10px; margin-top:12px; flex-wrap:wrap; align-items:center; }
+button { font-family:var(--font-head); font-size:10px; letter-spacing:2px; padding:10px 22px; border:none; border-radius:4px; cursor:pointer; text-transform:uppercase; transition:all .15s; }
+.btn-primary { background:var(--accent); color:#0a0c10; font-weight:700; }
+.btn-primary:hover { background:#ffd966; box-shadow:var(--glow); }
+.btn-secondary { background:transparent; color:var(--dim); border:1px solid var(--border); }
+.btn-secondary:hover { border-color:var(--accent); color:var(--accent); }
+.btn-danger { background:transparent; color:var(--red); border:1px solid rgba(255,77,106,.3); }
+.btn-danger:hover { background:rgba(255,77,106,.1); }
+#status { margin-bottom:20px; padding:12px 16px; border-radius:4px; display:none; font-size:12px; }
+#status.error { background:rgba(255,77,106,.1); border:1px solid rgba(255,77,106,.3); color:var(--red); display:block; }
+#status.info  { background:rgba(61,214,140,.1); border:1px solid rgba(61,214,140,.3); color:var(--green); display:block; }
+#status.warn  { background:rgba(244,200,66,.1); border:1px solid rgba(244,200,66,.3); color:var(--accent); display:block; }
+.summary-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:28px; }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:16px 18px; position:relative; overflow:hidden; }
+.card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:var(--accent); }
+.card.green::before { background:var(--green); }
+.card.red::before   { background:var(--red); }
+.card.blue::before  { background:var(--blue); }
+.card.purple::before{ background:var(--purple); }
+.card-label { font-size:9px; letter-spacing:2px; color:var(--dim); text-transform:uppercase; margin-bottom:8px; font-family:var(--font-head); }
+.card-value { font-size:22px; font-weight:bold; color:var(--text); font-family:var(--font-head); }
+.card-sub   { font-size:10px; color:var(--dim); margin-top:4px; }
+.section-head { font-family:var(--font-head); font-size:10px; letter-spacing:3px; color:var(--accent); text-transform:uppercase; margin-bottom:14px; padding-bottom:8px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+.section-head::after { content:''; flex:1; height:1px; background:var(--border); }
+.table-wrap { overflow-x:auto; margin-bottom:32px; }
+table { width:100%; border-collapse:collapse; }
+th { font-family:var(--font-head); font-size:9px; letter-spacing:1.5px; color:var(--dim); text-transform:uppercase; padding:10px 14px; text-align:left; border-bottom:1px solid var(--border); background:var(--surface2); white-space:nowrap; }
+td { padding:11px 14px; border-bottom:1px solid rgba(31,45,74,.4); vertical-align:middle; }
+tr:hover td { background:rgba(244,200,66,.03); }
+.ticker { font-family:var(--font-head); font-size:13px; color:var(--accent); letter-spacing:1px; }
+.good-name { color:var(--dim); font-size:11px; margin-top:2px; }
+.price { font-family:var(--font-head); font-size:14px; color:var(--text); }
+.t-up { color:var(--green); } .t-dn { color:var(--red); } .t-fl { color:var(--dim); }
+.pos  { color:var(--green); } .neg  { color:var(--red); }
+.shares-val { font-family:var(--font-head); font-size:13px; }
+.has-shares { color:var(--green); }
+.mode-badge { display:inline-block; font-family:var(--font-head); font-size:9px; letter-spacing:1px; padding:3px 8px; border-radius:3px; text-transform:uppercase; }
+.m-stable  { background:rgba(74,90,122,.15);  color:var(--muted);  border:1px solid var(--border); }
+.m-chaotic { background:rgba(244,200,66,.15); color:var(--accent); border:1px solid rgba(244,200,66,.3); }
+.m-slow    { background:rgba(74,90,122,.15);  color:var(--dim);    border:1px solid var(--border); }
+.m-falling { background:rgba(255,77,106,.15); color:var(--red);    border:1px solid rgba(255,77,106,.3); }
+.m-rising  { background:rgba(61,214,140,.15); color:var(--green);  border:1px solid rgba(61,214,140,.3); }
+.signal-badge { display:inline-flex; align-items:center; gap:5px; font-family:var(--font-head); font-size:9px; letter-spacing:1px; padding:4px 10px; border-radius:3px; text-transform:uppercase; font-weight:700; }
+.sig-buy   { background:rgba(61,214,140,.2); color:var(--green); border:1px solid rgba(61,214,140,.4); }
+.sig-sell  { background:rgba(255,77,106,.2); color:var(--red);   border:1px solid rgba(255,77,106,.4); }
+.sig-hold  { background:rgba(74,90,122,.15); color:var(--dim);   border:1px solid var(--border); }
+.sig-watch { background:rgba(244,200,66,.15);color:var(--accent);border:1px solid rgba(244,200,66,.3); }
+.zscore-bar { height:6px; border-radius:3px; background:var(--surface2); overflow:hidden; width:80px; display:inline-block; vertical-align:middle; margin-left:6px; }
+.zscore-fill { height:100%; border-radius:3px; }
+.raw-section details { border:1px solid var(--border); border-radius:6px; overflow:hidden; }
+summary { padding:12px 16px; cursor:pointer; background:var(--surface); font-family:var(--font-head); font-size:10px; letter-spacing:2px; color:var(--dim); text-transform:uppercase; list-style:none; user-select:none; }
+summary:hover { color:var(--accent); }
+pre { background:var(--bg); padding:16px; overflow:auto; font-size:11px; line-height:1.6; color:var(--dim); max-height:400px; }
+footer { text-align:center; padding:24px; color:var(--dim); font-size:10px; letter-spacing:1px; border-top:1px solid var(--border); margin-top:40px; }
+.hidden { display:none !important; }
+.tabs { display:flex; gap:0; border-bottom:1px solid var(--border); margin-bottom:24px; }
+.tab { font-family:var(--font-head); font-size:9px; letter-spacing:2px; padding:10px 20px; cursor:pointer; text-transform:uppercase; color:var(--dim); border-bottom:2px solid transparent; transition:all .15s; background:none; border-top:none; border-left:none; border-right:none; }
+.tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+.tab:hover { color:var(--text); }
+.tab-panel { display:none; }
+.tab-panel.active { display:block; }
+.chart-panel { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:20px; margin-bottom:24px; }
+.chart-title { font-family:var(--font-head); font-size:10px; letter-spacing:2px; color:var(--accent); text-transform:uppercase; margin-bottom:16px; }
+.chart-row { display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:20px; }
+@media(max-width:900px){ .chart-row { grid-template-columns:1fr; } }
+.ticker-select { background:var(--bg); border:1px solid var(--border); color:var(--text); font-family:var(--font-mono); font-size:12px; padding:8px 12px; border-radius:4px; outline:none; margin-right:8px; }
+.ticker-select:focus { border-color:var(--accent); }
+.history-count { font-size:11px; color:var(--dim); margin-left:10px; }
+.threshold-row { display:flex; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
+.threshold-row label { font-size:11px; color:var(--dim); }
+.threshold-row input[type=range] { width:120px; accent-color:var(--accent); }
+.threshold-row span { font-family:var(--font-head); font-size:12px; color:var(--accent); min-width:30px; }
+.strategy-panel { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:20px; margin-bottom:24px; }
+.export-btn { background:transparent; color:var(--blue); border:1px solid rgba(74,158,255,.3); font-family:var(--font-head); font-size:10px; letter-spacing:2px; padding:10px 22px; border-radius:4px; cursor:pointer; text-transform:uppercase; transition:all .15s; }
+.export-btn:hover { background:rgba(74,158,255,.1); }
+.history-bar { background:var(--surface2); border:1px solid var(--border); border-radius:6px; padding:12px 16px; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; }
+.info-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.badge-saves { display:inline-block; background:rgba(185,122,255,.2); color:var(--purple); border:1px solid rgba(185,122,255,.3); font-family:var(--font-head); font-size:9px; letter-spacing:1px; padding:3px 8px; border-radius:3px; }
+.note-box { background:rgba(244,200,66,.06); border:1px solid rgba(244,200,66,.2); border-radius:6px; padding:14px 18px; margin-bottom:20px; font-size:11px; color:var(--accent); line-height:1.7; }
+
+/* Tampermonkey live-feed panel */
+.tm-panel { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:20px 24px; margin-bottom:16px; }
+.tm-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px; }
+.tm-title { font-family:var(--font-head); font-size:11px; letter-spacing:2px; color:var(--text); text-transform:uppercase; }
+.tm-dot { width:10px; height:10px; border-radius:50%; background:var(--muted); flex-shrink:0; transition:background .3s; }
+.tm-dot.waiting  { background:var(--muted); }
+.tm-dot.active   { background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 2s infinite; }
+.tm-dot.stale    { background:var(--accent); box-shadow:0 0 8px rgba(244,200,66,.5); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+.tm-guide { display:flex; flex-direction:column; gap:10px; }
+.tm-step { font-size:12px; color:var(--text); line-height:1.7; display:flex; align-items:flex-start; gap:10px; }
+.tm-num { font-family:var(--font-head); font-size:10px; background:rgba(244,200,66,.15); color:var(--accent); border:1px solid rgba(244,200,66,.3); border-radius:3px; padding:1px 7px; flex-shrink:0; margin-top:2px; }
+
+/* Save-paste collapsible */
+.save-paste-section { background:var(--surface); border:1px solid var(--border); border-radius:8px; margin-bottom:16px; overflow:hidden; }
+.save-paste-section > summary { padding:14px 20px; cursor:pointer; font-family:var(--font-head); font-size:10px; letter-spacing:2px; color:var(--dim); text-transform:uppercase; list-style:none; user-select:none; transition:color .15s; }
+.save-paste-section > summary:hover { color:var(--accent); }
+.save-paste-section[open] > summary { color:var(--accent); border-bottom:1px solid var(--border); }
+.save-paste-section > div { padding:0 20px 16px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="cookie-icon">🍪</div>
+  <div class="header-text">
+    <h1>Stock Market Analyzer</h1>
+    <p>Cookie Clicker · Bank Minigame · Z-Score Mean Reversion</p>
+  </div>
+  <div class="server-status">
+    <div class="server-dot" id="serverDot"></div>
+    <span id="serverLabel" style="color:var(--dim)">Connecting…</span>
+  </div>
+</header>
+
+<main>
+  <div id="backendDownBanner" class="backend-down hidden">
+    ⚠ Flask backend is not running — open a terminal and run:
+    <strong>cd /Users/anilibryam/cookie &amp;&amp; python3 app.py</strong>
+    then refresh this page.
+  </div>
+
+  <!-- PRIMARY: Tampermonkey live feed panel -->
+  <div class="tm-panel" id="tmPanel">
+    <div class="tm-header">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="tm-dot" id="tmDot"></div>
+        <span class="tm-title">Live Feed</span>
+        <span class="badge-saves hidden" id="saveCountBadge"></span>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span id="lastUpdatedLabel" style="font-size:10px;color:var(--dim)"></span>
+        <button class="btn-danger" id="clearHistoryBtn" onclick="clearHistory()" style="display:none">🗑 Clear History</button>
+        <button class="btn-secondary" onclick="loadDemo()" style="padding:7px 14px">📦 Demo</button>
+      </div>
+    </div>
+
+    <!-- Not-yet-connected instructions -->
+    <div id="tmSetupGuide" class="tm-guide">
+      <div class="tm-step"><span class="tm-num">1</span>
+        Install <strong>Tampermonkey</strong> for
+        <a href="https://chrome.google.com/webstore/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo" target="_blank" style="color:var(--accent)">Chrome</a> or
+        <a href="https://addons.mozilla.org/en-US/firefox/addon/tampermonkey/" target="_blank" style="color:var(--accent)">Firefox</a>
+      </div>
+      <div class="tm-step"><span class="tm-num">2</span>
+        Open <a href="/userscript.user.js" target="_blank" style="color:var(--accent)">this link</a> — Tampermonkey will offer to install the tracker script automatically
+      </div>
+      <div class="tm-step"><span class="tm-num">3</span>
+        Open <strong>Cookie Clicker</strong> in any tab — data will start arriving here every 60 s
+      </div>
+      <div class="tm-step" style="color:var(--dim)">
+        ⬇ Or paste a save file below for a one-time import while you set up the script
+      </div>
+    </div>
+
+    <!-- Active feed info (shown once data is arriving) -->
+    <div id="tmActiveInfo" class="hidden" style="padding:4px 0 8px;font-size:11px;color:var(--dim)">
+      Data arrives automatically every 60 s while Cookie Clicker is open. Keep this tab open alongside the game.
+    </div>
+  </div>
+
+  <!-- SECONDARY: collapsed save-paste section -->
+  <details class="save-paste-section" id="savePasteDetails">
+    <summary>📋 Paste save file manually (optional bootstrap)</summary>
+    <div style="padding:16px 0 4px">
+      <textarea id="saveInput" placeholder="Paste your Cookie Clicker base64 save string here…"></textarea>
+      <div class="btn-row" style="margin-top:10px">
+        <button class="btn-primary" onclick="analyzeSave()">🔍 Analyze Save</button>
+        <label class="file-label" for="fileImport">📂 Import File</label>
+        <input type="file" id="fileImport" accept=".txt,.cookie,.save,text/*" onchange="handleFileImport(event)">
+        <button class="btn-secondary" onclick="clearInput()">✕ Clear</button>
+      </div>
+    </div>
+  </details>
+
+  <div id="status"></div>
+
+  <div id="results" class="hidden">
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('overview')">Overview</button>
+      <button class="tab" onclick="switchTab('signals')">Z-Score Signals</button>
+      <button class="tab" onclick="switchTab('charts')">Charts</button>
+      <button class="tab" onclick="switchTab('history')">Save History</button>
+      <button class="tab" onclick="switchTab('raw')">Raw Data</button>
+    </div>
+
+    <!-- OVERVIEW -->
+    <div class="tab-panel active" id="tab-overview">
+      <div class="section-head">Portfolio Overview</div>
+      <div class="summary-grid" id="summaryCards"></div>
+
+      <div class="section-head" style="margin-top:8px">Market Goods</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>#</th><th>Ticker / Good</th><th>Current Price</th><th>Rolling Mean</th>
+            <th>Δ vs Mean</th><th>Mode</th><th>Momentum</th>
+            <th>Shares Owned</th><th>Avg Buy</th><th>Unrealized P&amp;L</th>
+          </tr></thead>
+          <tbody id="stocksBody"></tbody>
+        </table>
+      </div>
+
+      <div class="section-head">Broker &amp; Bank Info</div>
+      <div class="summary-grid" id="brokerCards"></div>
+    </div>
+
+    <!-- SIGNALS -->
+    <div class="tab-panel" id="tab-signals">
+      <div class="strategy-panel">
+        <div class="chart-title">Z-Score Mean Reversion Settings</div>
+        <div class="threshold-row">
+          <label>Buy Z &lt;</label>
+          <input type="range" id="buyThresh" min="-4" max="-0.5" step="0.1" value="-2" oninput="updateThresholds()">
+          <span id="buyThreshVal">-2.0</span>
+          <label style="margin-left:20px">Sell Z &gt;</label>
+          <input type="range" id="sellThresh" min="0.5" max="4" step="0.1" value="2" oninput="updateThresholds()">
+          <span id="sellThreshVal">+2.0</span>
+        </div>
+        <div class="threshold-row">
+          <label>Window (saves)</label>
+          <input type="range" id="windowSize" min="2" max="20" step="1" value="5" oninput="updateThresholds()">
+          <span id="windowSizeVal">5</span>
+          <span class="history-count" id="historyNote"></span>
+        </div>
+      </div>
+
+      <div class="section-head">Trading Signals</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>#</th><th>Ticker / Good</th><th>Price</th><th>Owned</th><th>Avg Buy</th>
+            <th>Mean</th><th>Std Dev</th><th>Z-Score</th><th>Z-Bar</th>
+            <th>Signal</th><th>Confidence</th><th>Notes</th>
+          </tr></thead>
+          <tbody id="signalsBody"></tbody>
+        </table>
+      </div>
+
+      <div class="section-head">Signal Summary</div>
+      <div class="summary-grid" id="signalSummary"></div>
+    </div>
+
+    <!-- CHARTS -->
+    <div class="tab-panel" id="tab-charts">
+      <div class="chart-panel">
+        <div class="chart-title">Price History — Select Good</div>
+        <div style="margin-bottom:16px">
+          <select class="ticker-select" id="chartTickerSelect" onchange="renderCharts()"></select>
+          <span class="history-count" id="chartHistCount"></span>
+        </div>
+        <div class="chart-row">
+          <div>
+            <div style="font-size:10px;color:var(--dim);letter-spacing:1px;margin-bottom:8px">PRICE HISTORY</div>
+            <div style="position:relative;height:220px"><canvas id="priceChart"></canvas></div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--dim);letter-spacing:1px;margin-bottom:8px">Z-SCORE HISTORY</div>
+            <div style="position:relative;height:220px"><canvas id="zscoreChart"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="chart-panel">
+        <div class="chart-title">Current Snapshot — All Goods</div>
+        <div class="chart-row">
+          <div>
+            <div style="font-size:10px;color:var(--dim);letter-spacing:1px;margin-bottom:8px">PRICE VS BASE (% deviation)</div>
+            <div style="position:relative;height:300px"><canvas id="deviationChart"></canvas></div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:var(--dim);letter-spacing:1px;margin-bottom:8px">CURRENT Z-SCORES</div>
+            <div style="position:relative;height:300px"><canvas id="allZscoreChart"></canvas></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HISTORY -->
+    <div class="tab-panel" id="tab-history">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div class="section-head" style="margin-bottom:0;border:none;padding:0">Save History Log</div>
+        <button class="export-btn" onclick="exportHistory()">⬇ Export JSON</button>
+      </div>
+      <div id="historyList"></div>
+    </div>
+
+    <!-- RAW -->
+    <div class="tab-panel" id="raw">
+      <div class="raw-section">
+        <details open>
+          <summary>▸ Raw Extracted JSON — Current Save</summary>
+          <pre id="rawJson"></pre>
+        </details>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>Cookie Clicker is made by Orteil &amp; Opti — this tool is unofficial &amp; fan-made · Z-Score model by mean reversion theory</footer>
+
+<script>
+/* ═══════════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════════ */
+let currentData   = null;   // goods + overview from last analyze
+let currentSignals = [];    // signal rows from last analyze
+let priceHistory  = {};     // {ticker: {prices, timestamps}} from backend
+let historyCount  = 0;
+
+let priceChartInst    = null;
+let zscoreChartInst   = null;
+let deviationChartInst = null;
+let allZscoreChartInst = null;
+
+/* ═══════════════════════════════════════════════════
+   QUANT MATH (client-side for real-time slider updates)
+═══════════════════════════════════════════════════ */
+function rollingMean(series, w) {
+  return series.map((_, i) => {
+    if (i < w - 1) return null;
+    const sl = series.slice(i - w + 1, i + 1);
+    return sl.reduce((a, b) => a + b, 0) / sl.length;
+  });
+}
+
+function rollingStd(series, w) {
+  return series.map((_, i) => {
+    if (i < w - 1) return null;
+    const sl   = series.slice(i - w + 1, i + 1);
+    const mean = sl.reduce((a, b) => a + b, 0) / sl.length;
+    return Math.sqrt(sl.reduce((a, b) => a + (b - mean) ** 2, 0) / sl.length);
+  });
+}
+
+function calcZScores(series, w) {
+  const means = rollingMean(series, w);
+  const stds  = rollingStd(series, w);
+  return series.map((p, i) => {
+    if (means[i] == null || stds[i] == null || stds[i] < 0.0001) return null;
+    return (p - means[i]) / stds[i];
+  });
+}
+
+function generateSignal(z, buyT, sellT, mode, momentum) {
+  if (z == null) return { signal: 'HOLD', confidence: 0, reason: 'Insufficient history — paste more saves' };
+  let signal, confidence, reason;
+  if (z <= buyT) {
+    signal = 'BUY'; confidence = Math.min(100, Math.round(Math.abs(z / buyT) * 60));
+    reason = `Z=${z.toFixed(2)} below buy threshold`;
+  } else if (z >= sellT) {
+    signal = 'SELL'; confidence = Math.min(100, Math.round((z / sellT) * 60));
+    reason = `Z=${z.toFixed(2)} above sell threshold`;
+  } else if (z <= buyT * 0.6) {
+    signal = 'WATCH'; confidence = 30; reason = `Z=${z.toFixed(2)}, approaching buy zone`;
+  } else if (z >= sellT * 0.6) {
+    signal = 'WATCH'; confidence = 30; reason = `Z=${z.toFixed(2)}, approaching sell zone`;
+  } else {
+    signal = 'HOLD'; confidence = Math.round((1 - Math.abs(z) / 2) * 40);
+    reason = `Z=${z.toFixed(2)}, neutral zone`;
+  }
+  if (signal === 'BUY'  && (mode === 4 || mode === 5)) { confidence = Math.min(100, confidence + 20); reason += ' + Rising mode'; }
+  if (signal === 'SELL' && mode === 3)                  { confidence = Math.min(100, confidence + 20); reason += ' + Falling mode'; }
+  if (signal === 'BUY'  && momentum > 100)              { confidence = Math.min(100, confidence + 10); reason += ' + positive momentum'; }
+  if (signal === 'SELL' && momentum < -100)             { confidence = Math.min(100, confidence + 10); reason += ' + negative momentum'; }
+  return { signal, confidence, reason };
+}
+
+/* ═══════════════════════════════════════════════════
+   FORMATTING
+═══════════════════════════════════════════════════ */
+const fmt      = n => (n == null || isNaN(n)) ? '—' : '$' + n.toFixed(2);
+const fmtPct   = n => (n == null || isNaN(n)) ? '—' : (n >= 0 ? '+' : '') + n.toFixed(1) + '%';
+const fmtLarge = n => {
+  if (n >= 1e12) return (n / 1e12).toFixed(2) + ' T';
+  if (n >= 1e9)  return (n / 1e9).toFixed(2)  + ' B';
+  if (n >= 1e6)  return (n / 1e6).toFixed(2)  + ' M';
+  if (n >= 1e3)  return (n / 1e3).toFixed(2)  + ' K';
+  return n.toFixed(2);
+};
+const OFFICE_LEVELS = ['Tent','Shed','Warehouse','Office','Corporation','Headquarters'];
+
+/* ═══════════════════════════════════════════════════
+   STATUS / UI HELPERS
+═══════════════════════════════════════════════════ */
+function setStatus(msg, type) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = type;
+  el.style.display = '';   // clear any inline override so CSS class takes effect
+}
+function clearStatus() {
+  const el = document.getElementById('status');
+  el.className = '';
+  el.style.display = 'none';
+}
+
+function updateBadge() {
+  const badge = document.getElementById('saveCountBadge');
+  const btn   = document.getElementById('clearHistoryBtn');
+  if (historyCount > 0) {
+    badge.textContent = `${historyCount} saves`;
+    badge.classList.remove('hidden');
+    btn.style.display = '';
+  } else {
+    badge.classList.add('hidden');
+    btn.style.display = 'none';
+  }
+}
+
+function switchTab(id) {
+  const ids = ['overview', 'signals', 'charts', 'history', 'raw'];
+  document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', ids[i] === id));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  const panel = document.getElementById('tab-' + id) || document.getElementById(id);
+  if (panel) panel.classList.add('active');
+  if (id === 'charts')  renderCharts();
+  if (id === 'history') renderHistoryTab();
+}
+
+/* ═══════════════════════════════════════════════════
+   API CALLS
+═══════════════════════════════════════════════════ */
+async function analyzeSave() {
+  clearStatus();
+  const raw = document.getElementById('saveInput').value.trim();
+  if (!raw) { setStatus('⚠ Please paste a save file string first.', 'error'); return; }
+
+  setStatus('⏳ Analyzing…', 'warn');
+  try {
+    const res  = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ save_string: raw }),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'Unknown server error');
+
+    applySnapshot(json);
+    const d = json.data;
+    setStatus(
+      `✓ Loaded "${d.player_name}" — v${d.version} · ${d.goods.length} goods · ` +
+      `${d.brokers} broker(s) · ${OFFICE_LEVELS[d.office_level] || 'Office'} · ` +
+      `${json.history_count} save(s) in history`,
+      'info'
+    );
+    // Collapse the save-paste section after a successful import
+    document.getElementById('savePasteDetails').removeAttribute('open');
+  } catch (e) {
+    const msg = e.message.includes('fetch') || e.message.includes('Failed')
+      ? '✕ Cannot reach backend — make sure Flask is running: python3 app.py'
+      : '✕ ' + e.message;
+    setStatus(msg, 'error');
+    setServerStatus(false);
+    console.error(e);
+  }
+}
+
+async function clearHistory() {
+  if (!confirm('Clear all save history? This resets all Z-score data.')) return;
+  try {
+    await fetch('/api/history', { method: 'DELETE' });
+    priceHistory   = {};
+    historyCount   = 0;
+    currentSignals = [];
+    lastKnownTs    = 0;
+    updateBadge();
+    setTmStatus('waiting');
+    setStatus('ℹ History cleared — Z-scores reset.', 'warn');
+    if (currentData) { renderSignalsPanel(); renderHistoryTab(); }
+  } catch (e) {
+    setStatus('✕ Failed to clear history: ' + e.message, 'error');
+  }
+}
+
+async function loadDemo() {
+  setStatus('⏳ Loading demo…', 'warn');
+  try {
+    const res  = await fetch('/api/demo', { method: 'POST' });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'Demo failed');
+    applySnapshot(json);
+    setStatus(`✓ Demo loaded — ${json.history_count} synthetic snapshots, Z-scores active!`, 'info');
+  } catch (e) {
+    setStatus('✕ ' + e.message, 'error');
+  }
+}
+
+async function exportHistory() {
+  try {
+    const res  = await fetch('/api/history');
+    const json = await res.json();
+    const blob = new Blob([JSON.stringify(json.history, null, 2)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = 'cc_history_' + Date.now() + '.json'; a.click();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    alert('Export failed: ' + e.message);
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   CLEAR INPUT ONLY (does not touch history)
+═══════════════════════════════════════════════════ */
+function clearInput() {
+  document.getElementById('saveInput').value = '';
+  document.getElementById('results').classList.add('hidden');
+  currentData    = null;
+  currentSignals = [];
+  clearStatus();
+  // priceHistory and historyCount are preserved (history stays on server)
+}
+
+/* ═══════════════════════════════════════════════════
+   FILE IMPORT
+═══════════════════════════════════════════════════ */
+function handleFileImport(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('saveInput').value = e.target.result.trim();
+    setStatus(`ℹ File loaded: "${file.name}" — click Analyze to parse.`, 'warn');
+  };
+  reader.readAsText(file);
+}
+
+/* ═══════════════════════════════════════════════════
+   RENDER — OVERVIEW TAB
+═══════════════════════════════════════════════════ */
+function renderOverview() {
+  const d = currentData;
+  const { version, timestamp, player_name, office_level, brokers, cookie_pool, goods } = d;
+  const officeName  = OFFICE_LEVELS[office_level] || `Lvl ${office_level}`;
+  const maxBrokers  = (office_level + 1) * 5;
+  const commission  = Math.max(0, 3 - brokers * 0.1).toFixed(1);
+  const totalOwned  = goods.reduce((s, g) => s + g.owned, 0);
+  const totalValue  = goods.reduce((s, g) => s + g.owned * g.price, 0);
+  const totalPnL    = goods.reduce((s, g) => s + (g.pnl ?? 0), 0);
+  const rising      = goods.filter(g => g.mode === 4 || g.mode === 5).length;
+  const falling     = goods.filter(g => g.mode === 3).length;
+
+  document.getElementById('summaryCards').innerHTML = `
+    <div class="card"><div class="card-label">Player</div>
+      <div class="card-value" style="font-size:15px">${player_name}</div>
+      <div class="card-sub">v${version} · ${timestamp ? new Date(timestamp).toLocaleDateString() : '?'}</div></div>
+    <div class="card blue"><div class="card-label">History Depth</div>
+      <div class="card-value">${historyCount}</div>
+      <div class="card-sub">saves stored · ${historyCount >= 2 ? 'Z-scores active' : 'need 2+ for signals'}</div></div>
+    <div class="card"><div class="card-label">Office</div>
+      <div class="card-value" style="font-size:15px">${officeName}</div>
+      <div class="card-sub">Level ${office_level} of 5</div></div>
+    <div class="card"><div class="card-label">Brokers</div>
+      <div class="card-value">${brokers}</div>
+      <div class="card-sub">of ${maxBrokers} max · ${commission}% fee</div></div>
+    <div class="card"><div class="card-label">Cookie Reserve</div>
+      <div class="card-value" style="font-size:14px">${fmtLarge(cookie_pool)}</div>
+      <div class="card-sub">bank trading pool</div></div>
+    <div class="card"><div class="card-label">Shares Held</div>
+      <div class="card-value">${totalOwned.toLocaleString()}</div>
+      <div class="card-sub">mkt value ${fmt(totalValue)}</div></div>
+    <div class="card ${totalPnL >= 0 ? 'green' : 'red'}"><div class="card-label">Unrealized P&L</div>
+      <div class="card-value" style="font-size:14px;color:${totalPnL >= 0 ? 'var(--green)' : 'var(--red)'}">${fmt(totalPnL)}</div>
+      <div class="card-sub">vs avg buy price</div></div>
+    <div class="card"><div class="card-label">Market Signals</div>
+      <div class="card-value" style="font-size:14px">
+        <span style="color:var(--green)">▲${rising}</span>
+        <span style="color:var(--dim)"> · </span>
+        <span style="color:var(--red)">▼${falling}</span>
+      </div><div class="card-sub">rising · falling</div></div>
+  `;
+
+  const signalMap = Object.fromEntries(currentSignals.map(s => [s.ticker, s]));
+
+  const tbody = document.getElementById('stocksBody');
+  tbody.innerHTML = '';
+  goods.forEach(g => {
+    const sig    = signalMap[g.ticker] || {};
+    const mean   = sig.mean ?? null;
+    const devPct = mean != null ? (g.price - mean) / mean * 100 : null;
+    const dCls   = devPct === null ? '' : devPct >= 0 ? 'pos' : 'neg';
+    const mCls   = g.momentum > 50 ? 't-up' : g.momentum < -50 ? 't-dn' : 't-fl';
+    const mIcon  = g.momentum > 50 ? '▲' : g.momentum < -50 ? '▼' : '—';
+    const tr     = document.createElement('tr');
+
+    const ownedCell = g.owned > 0
+      ? `<div class="shares-val has-shares">${g.owned.toLocaleString()}</div>`
+      : `<div class="shares-val" style="color:var(--dim)">—</div>`;
+
+    const avgBuyCell = g.avg_buy != null
+      ? `<div style="font-family:var(--font-head);font-size:12px">${fmt(g.avg_buy)}</div>`
+      : `<div style="color:var(--dim)">—</div>`;
+
+    const pnlCell = g.pnl != null
+      ? `<div class="${g.pnl >= 0 ? 'pos' : 'neg'}">${fmt(g.pnl)}<br>
+         <span style="font-size:9px">${fmtPct(g.pnl_pct)}</span></div>`
+      : `<div style="color:var(--dim)">—</div>`;
+
+    tr.innerHTML = `
+      <td style="color:var(--dim);font-size:11px">${g.idx}</td>
+      <td><div class="ticker">${g.ticker}</div><div class="good-name">${g.name}</div></td>
+      <td><div class="price">${fmt(g.price)}</div></td>
+      <td style="color:var(--dim);font-size:12px">${mean != null ? fmt(mean) : '<span style="color:var(--muted)">—</span>'}</td>
+      <td>${devPct !== null ? `<span class="${dCls}">${fmtPct(devPct)}</span>` : '<span style="color:var(--muted)">—</span>'}</td>
+      <td><span class="mode-badge ${g.mode_cls}">${g.mode_name}</span></td>
+      <td><span class="${mCls}">${mIcon}</span> <span style="color:var(--dim);font-size:10px">${g.momentum}</span></td>
+      <td>${ownedCell}</td>
+      <td>${avgBuyCell}</td>
+      <td>${pnlCell}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('brokerCards').innerHTML = `
+    <div class="card"><div class="card-label">Commission Rate</div>
+      <div class="card-value">${commission}%</div><div class="card-sub">per buy &amp; sell trade</div></div>
+    <div class="card"><div class="card-label">Free Broker Slots</div>
+      <div class="card-value">${maxBrokers - brokers}</div>
+      <div class="card-sub">${brokers} hired · ${maxBrokers} max</div></div>
+    <div class="card"><div class="card-label">Next Upgrade</div>
+      <div class="card-value" style="font-size:13px">${office_level < 5 ? OFFICE_LEVELS[office_level + 1] : '✓ MAX'}</div>
+      <div class="card-sub">${office_level < 5 ? '+5 broker slots' : 'fully upgraded'}</div></div>
+    <div class="card"><div class="card-label">Cookie Reserve</div>
+      <div class="card-value" style="font-size:14px">${fmtLarge(cookie_pool)}</div>
+      <div class="card-sub">available for purchases</div></div>
+  `;
+}
+
+/* ═══════════════════════════════════════════════════
+   RENDER — SIGNALS TAB
+═══════════════════════════════════════════════════ */
+function renderSignalsPanel() {
+  if (!currentData) return;
+  const buyT   = parseFloat(document.getElementById('buyThresh').value);
+  const sellT  = parseFloat(document.getElementById('sellThresh').value);
+  const window_ = parseInt(document.getElementById('windowSize').value);
+
+  document.getElementById('buyThreshVal').textContent  = buyT.toFixed(1);
+  document.getElementById('sellThreshVal').textContent = '+' + sellT.toFixed(1);
+  document.getElementById('windowSizeVal').textContent = window_;
+  document.getElementById('historyNote').textContent   = `(${historyCount} saves stored)`;
+
+  const tbody = document.getElementById('signalsBody');
+  tbody.innerHTML = '';
+  let buys = 0, sells = 0, watches = 0, holds = 0;
+
+  currentData.goods.forEach(g => {
+    const ph     = priceHistory[g.ticker] || { prices: [], timestamps: [] };
+    const prices = ph.prices;
+    const zs     = calcZScores(prices, window_);
+    const means  = rollingMean(prices, window_);
+    const stds   = rollingStd(prices, window_);
+
+    const latestZ    = zs.length    ? zs[zs.length - 1]       : null;
+    const latestMean = means.length ? means[means.length - 1]  : null;
+    const latestStd  = stds.length  ? stds[stds.length - 1]   : null;
+    const { signal, confidence, reason } = generateSignal(latestZ, buyT, sellT, g.mode, g.momentum);
+
+    if (signal === 'BUY')   buys++;
+    else if (signal === 'SELL')  sells++;
+    else if (signal === 'WATCH') watches++;
+    else holds++;
+
+    const zBarPct   = latestZ == null ? 50 : Math.max(0, Math.min(100, (latestZ + 4) / 8 * 100));
+    const zBarColor = signal === 'BUY' ? '#3dd68c' : signal === 'SELL' ? '#ff4d6a' : signal === 'WATCH' ? '#f4c842' : '#4a5a7a';
+    const sigCls    = { BUY: 'sig-buy', SELL: 'sig-sell', WATCH: 'sig-watch', HOLD: 'sig-hold' }[signal];
+    const sigIcon   = { BUY: '▲', SELL: '▼', WATCH: '◈', HOLD: '—' }[signal];
+
+    const ownedCell  = g.owned > 0
+      ? `<span class="has-shares" style="font-family:var(--font-head)">${g.owned.toLocaleString()}</span>`
+      : '<span style="color:var(--dim)">—</span>';
+    const avgBuyCell = g.avg_buy != null ? fmt(g.avg_buy) : '<span style="color:var(--dim)">—</span>';
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="color:var(--dim);font-size:11px">${g.idx}</td>
+      <td><div class="ticker">${g.ticker}</div><div class="good-name">${g.name}</div></td>
+      <td><div class="price">${fmt(g.price)}</div></td>
+      <td>${ownedCell}</td>
+      <td style="font-size:12px">${avgBuyCell}</td>
+      <td style="color:var(--dim);font-size:12px">${latestMean == null ? '—' : fmt(latestMean)}</td>
+      <td style="color:var(--dim);font-size:12px">${latestStd == null ? '—' : '$' + latestStd.toFixed(3)}</td>
+      <td style="font-family:var(--font-head);font-size:13px;color:${zBarColor}">${latestZ == null ? '—' : latestZ.toFixed(3)}</td>
+      <td><div class="zscore-bar"><div class="zscore-fill" style="width:${zBarPct}%;background:${zBarColor}"></div></div></td>
+      <td><span class="signal-badge ${sigCls}">${sigIcon} ${signal}</span></td>
+      <td>
+        <div style="font-size:11px;color:var(--dim)">${latestZ == null ? '—' : confidence + '%'}</div>
+        <div style="height:3px;width:${confidence}%;background:${zBarColor};border-radius:2px;margin-top:3px"></div>
+      </td>
+      <td style="font-size:10px;color:var(--dim);max-width:180px">${reason}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('signalSummary').innerHTML = `
+    <div class="card green"><div class="card-label">Buy Signals</div>
+      <div class="card-value">${buys}</div><div class="card-sub">Z below ${buyT.toFixed(1)}</div></div>
+    <div class="card red"><div class="card-label">Sell Signals</div>
+      <div class="card-value">${sells}</div><div class="card-sub">Z above +${sellT.toFixed(1)}</div></div>
+    <div class="card"><div class="card-label">Watch</div>
+      <div class="card-value">${watches}</div><div class="card-sub">approaching threshold</div></div>
+    <div class="card"><div class="card-label">Hold / Neutral</div>
+      <div class="card-value">${holds}</div><div class="card-sub">no clear signal</div></div>
+    <div class="card purple"><div class="card-label">History Depth</div>
+      <div class="card-value">${historyCount}</div><div class="card-sub">saves · window=${window_}</div></div>
+    <div class="card blue"><div class="card-label">Z-Score Quality</div>
+      <div class="card-value" style="font-size:14px">${historyCount >= window_ ? 'GOOD' : 'LOW'}</div>
+      <div class="card-sub">${historyCount < window_ ? 'paste more saves for accuracy' : 'sufficient data'}</div></div>
+  `;
+}
+
+function updateThresholds() {
+  renderSignalsPanel();
+  if (document.getElementById('tab-charts')?.classList.contains('active')) renderCharts();
+}
+
+/* ═══════════════════════════════════════════════════
+   RENDER — CHARTS TAB
+═══════════════════════════════════════════════════ */
+function renderCharts() {
+  if (!currentData) return;
+  const window_ = parseInt(document.getElementById('windowSize').value) || 5;
+  const ticker  = document.getElementById('chartTickerSelect').value;
+
+  const ph         = priceHistory[ticker] || { prices: [], timestamps: [] };
+  const prices     = ph.prices;
+  const timestamps = ph.timestamps.map(ts => {
+    const d = new Date(ts);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' ' +
+           d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  });
+
+  const zScores = calcZScores(prices, window_);
+  const means   = rollingMean(prices, window_);
+
+  document.getElementById('chartHistCount').textContent = `${prices.length} data points for ${ticker}`;
+
+  // Price chart
+  if (priceChartInst) priceChartInst.destroy();
+  priceChartInst = new Chart(document.getElementById('priceChart'), {
+    type: 'line',
+    data: {
+      labels: timestamps.length ? timestamps : ['Now'],
+      datasets: [
+        { label: 'Price',        data: prices, borderColor: '#f4c842', backgroundColor: 'rgba(244,200,66,.08)', tension: .3, pointRadius: 3, borderWidth: 2, fill: true },
+        { label: 'Rolling Mean', data: means,  borderColor: '#4a9eff', backgroundColor: 'transparent', tension: .3, pointRadius: 0, borderWidth: 1.5, borderDash: [4, 3] },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#4a5a7a', font: { size: 9 } }, grid: { color: 'rgba(31,45,74,.4)' } },
+        y: { ticks: { color: '#4a5a7a', font: { size: 9 }, callback: v => '$' + v.toFixed(2) }, grid: { color: 'rgba(31,45,74,.4)' } },
+      },
+    },
+  });
+
+  // Z-score chart
+  const zData   = zScores.filter(z => z != null);
+  const zLabels = timestamps.slice(timestamps.length - zData.length);
+  if (zscoreChartInst) zscoreChartInst.destroy();
+  zscoreChartInst = new Chart(document.getElementById('zscoreChart'), {
+    type: 'line',
+    data: {
+      labels: zLabels,
+      datasets: [{ label: 'Z-Score', data: zData, borderColor: '#b97aff', backgroundColor: 'rgba(185,122,255,.08)', tension: .3, pointRadius: 3, borderWidth: 2, fill: true }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#4a5a7a', font: { size: 9 } }, grid: { color: 'rgba(31,45,74,.4)' } },
+        y: { ticks: { color: '#4a5a7a', font: { size: 9 }, callback: v => v.toFixed(2) }, grid: { color: 'rgba(31,45,74,.4)' }, min: -4, max: 4 },
+      },
+    },
+  });
+
+  // Deviation bar chart — % vs rolling mean (accurate; base prices are not reliable)
+  const goods    = currentData.goods;
+  const sigMap2  = Object.fromEntries(currentSignals.map(s => [s.ticker, s]));
+  const devLabels = goods.map(g => g.ticker);
+  const devData   = goods.map(g => {
+    const m = sigMap2[g.ticker]?.mean ?? null;
+    return m != null ? parseFloat(((g.price - m) / m * 100).toFixed(2)) : 0;
+  });
+  const devColors = devData.map(v => v >= 0 ? 'rgba(61,214,140,.7)' : 'rgba(255,77,106,.7)');
+  if (deviationChartInst) deviationChartInst.destroy();
+  deviationChartInst = new Chart(document.getElementById('deviationChart'), {
+    type: 'bar',
+    data: { labels: devLabels, datasets: [{ label: '% vs Mean', data: devData, backgroundColor: devColors, borderWidth: 0 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#4a5a7a', font: { size: 9 }, maxRotation: 45 }, grid: { color: 'rgba(31,45,74,.4)' } },
+        y: { ticks: { color: '#4a5a7a', font: { size: 9 }, callback: v => v + '%' }, grid: { color: 'rgba(31,45,74,.4)' } },
+      },
+    },
+  });
+
+  // All Z-scores bar chart
+  const buyT  = parseFloat(document.getElementById('buyThresh').value);
+  const sellT = parseFloat(document.getElementById('sellThresh').value);
+  const allZ  = goods.map(g => {
+    const p = (priceHistory[g.ticker] || { prices: [] }).prices;
+    const z = calcZScores(p, window_);
+    const v = z.length ? z[z.length - 1] : null;
+    return v == null ? 0 : parseFloat(v.toFixed(3));
+  });
+  const allZColors = allZ.map(z => z <= buyT ? 'rgba(61,214,140,.7)' : z >= sellT ? 'rgba(255,77,106,.7)' : 'rgba(74,158,255,.5)');
+  if (allZscoreChartInst) allZscoreChartInst.destroy();
+  allZscoreChartInst = new Chart(document.getElementById('allZscoreChart'), {
+    type: 'bar',
+    data: { labels: devLabels, datasets: [{ label: 'Z-Score', data: allZ, backgroundColor: allZColors, borderWidth: 0 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#4a5a7a', font: { size: 9 }, maxRotation: 45 }, grid: { color: 'rgba(31,45,74,.4)' } },
+        y: { ticks: { color: '#4a5a7a', font: { size: 9 }, callback: v => v.toFixed(1) }, grid: { color: 'rgba(31,45,74,.4)' }, min: -4, max: 4 },
+      },
+    },
+  });
+}
+
+/* ═══════════════════════════════════════════════════
+   RENDER — HISTORY TAB
+═══════════════════════════════════════════════════ */
+async function renderHistoryTab() {
+  const el = document.getElementById('historyList');
+  try {
+    const res  = await fetch('/api/history');
+    const json = await res.json();
+    const history = json.history || [];
+    if (!history.length) {
+      el.innerHTML = '<div style="color:var(--dim);font-size:12px;padding:20px">No history yet. Analyze saves to build Z-score data.</div>';
+      return;
+    }
+    el.innerHTML = history.slice().reverse().map((entry, i, arr) => {
+      const idx    = arr.length - 1 - i;
+      const d      = new Date(entry.ts);
+      const rising = entry.goods.filter(g => g.mode === 4 || g.mode === 5).length;
+      const falling = entry.goods.filter(g => g.mode === 3).length;
+      const ownedCount = entry.goods.filter(g => g.owned > 0).length;
+      return `
+        <div class="history-bar">
+          <div class="history-entry">
+            <strong>#${idx + 1}</strong> &nbsp;
+            <span style="color:var(--text)">${entry.player_name}</span>
+            <span style="color:var(--dim);margin-left:12px">v${entry.version}</span>
+            <span style="color:var(--dim);margin-left:12px">${d.toLocaleString()}</span>
+          </div>
+          <div class="info-row">
+            <span style="color:var(--green);font-size:11px">▲${rising} rising</span>
+            <span style="color:var(--red);font-size:11px">▼${falling} falling</span>
+            ${ownedCount > 0 ? `<span style="color:var(--accent);font-size:11px">📦 ${ownedCount} held</span>` : ''}
+            <span style="color:var(--dim);font-size:11px">${entry.goods.length} goods</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (e) {
+    el.innerHTML = `<div style="color:var(--red);font-size:12px;padding:20px">Failed to load history: ${e.message}</div>`;
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   RENDER — TICKER SELECT & ALL PANELS
+═══════════════════════════════════════════════════ */
+function populateTickerSelect() {
+  if (!currentData) return;
+  const sel = document.getElementById('chartTickerSelect');
+  sel.innerHTML = currentData.goods.map(g => `<option value="${g.ticker}">${g.ticker} — ${g.name}</option>`).join('');
+}
+
+function renderAll() {
+  renderOverview();
+  renderSignalsPanel();
+  populateTickerSelect();
+  document.getElementById('rawJson').textContent = JSON.stringify(currentData, null, 2);
+}
+
+/* ═══════════════════════════════════════════════════
+   SERVER STATUS
+═══════════════════════════════════════════════════ */
+function setServerStatus(ok) {
+  const dot    = document.getElementById('serverDot');
+  const label  = document.getElementById('serverLabel');
+  const banner = document.getElementById('backendDownBanner');
+  dot.className     = 'server-dot ' + (ok ? 'ok' : 'err');
+  label.textContent = ok ? 'Backend connected' : 'Backend offline';
+  label.style.color = ok ? 'var(--green)' : 'var(--red)';
+  banner.classList.toggle('hidden', ok);
+}
+
+/* ═══════════════════════════════════════════════════
+   TAMPERMONKEY STATUS
+═══════════════════════════════════════════════════ */
+let lastKnownTs   = 0;   // ms timestamp of last received snapshot
+let pollInterval  = null;
+
+function setTmStatus(state) {
+  // state: 'waiting' | 'active' | 'stale'
+  const dot      = document.getElementById('tmDot');
+  const guide    = document.getElementById('tmSetupGuide');
+  const active   = document.getElementById('tmActiveInfo');
+  const label    = document.getElementById('lastUpdatedLabel');
+
+  dot.className = 'tm-dot ' + state;
+
+  if (state === 'waiting') {
+    guide.classList.remove('hidden');
+    active.classList.add('hidden');
+    label.textContent = '';
+  } else {
+    guide.classList.add('hidden');
+    active.classList.remove('hidden');
+    const sec = Math.round((Date.now() - lastKnownTs) / 1000);
+    label.textContent = sec < 10 ? 'Updated just now'
+                      : sec < 90 ? `Updated ${sec}s ago`
+                      : `Updated ${Math.round(sec/60)}m ago`;
+  }
+}
+
+// Refresh the "X seconds ago" label every 10 s without re-fetching
+setInterval(() => { if (lastKnownTs > 0) setTmStatus(Date.now() - lastKnownTs < 150_000 ? 'active' : 'stale'); }, 10_000);
+
+/* ═══════════════════════════════════════════════════
+   APPLY SNAPSHOT — shared by poll + manual analyze
+═══════════════════════════════════════════════════ */
+function applySnapshot(json) {
+  currentData    = json.data;
+  currentSignals = json.signals  || [];
+  priceHistory   = json.price_history || {};
+  historyCount   = json.history_count || 0;
+  lastKnownTs    = json.last_ts || json.data?.timestamp || Date.now();
+
+  updateBadge();
+  renderAll();
+  document.getElementById('results').classList.remove('hidden');
+  setTmStatus(Date.now() - lastKnownTs < 150_000 ? 'active' : 'stale');
+}
+
+/* ═══════════════════════════════════════════════════
+   POLLING — check /api/latest every 20 s
+═══════════════════════════════════════════════════ */
+async function pollLatest() {
+  try {
+    const res  = await fetch('/api/latest');
+    if (!res.ok) return;
+    const json = await res.json();
+    if (!json.data) return;
+
+    const incoming = json.last_ts || 0;
+    if (incoming > lastKnownTs) {
+      applySnapshot(json);
+      // Auto-open results if they were hidden (first data arrival)
+      if (document.getElementById('results').classList.contains('hidden')) {
+        document.getElementById('results').classList.remove('hidden');
+      }
+    } else {
+      // No new data — just refresh the time label
+      if (lastKnownTs > 0) setTmStatus(Date.now() - lastKnownTs < 150_000 ? 'active' : 'stale');
+    }
+  } catch (e) { /* server unreachable */ }
+}
+
+/* ═══════════════════════════════════════════════════
+   INIT — ping backend, load any existing history,
+          then start polling
+═══════════════════════════════════════════════════ */
+(async function init() {
+  try {
+    const res  = await fetch('/api/latest');
+    if (!res.ok) throw new Error('bad status');
+    const json = await res.json();
+    setServerStatus(true);
+
+    if (json.data) {
+      applySnapshot(json);
+    } else {
+      setTmStatus('waiting');
+    }
+  } catch (e) {
+    setServerStatus(false);
+    setTmStatus('waiting');
+  }
+
+  // Poll every 20 s regardless — catches both TM injections and manual saves
+  pollInterval = setInterval(pollLatest, 20_000);
+})();
+</script>
+</body>
+</html>
