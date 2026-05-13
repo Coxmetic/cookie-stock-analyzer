@@ -115,6 +115,23 @@ footer { text-align:center; padding:24px; color:var(--dim); font-size:10px; lett
 .badge-saves { display:inline-block; background:rgba(185,122,255,.2); color:var(--purple); border:1px solid rgba(185,122,255,.3); font-family:var(--font-head); font-size:9px; letter-spacing:1px; padding:3px 8px; border-radius:3px; }
 .note-box { background:rgba(244,200,66,.06); border:1px solid rgba(244,200,66,.2); border-radius:6px; padding:14px 18px; margin-bottom:20px; font-size:11px; color:var(--accent); line-height:1.7; }
 
+/* Custom CSS tooltips */
+.tip-wrap { position:relative; display:inline-block; }
+.tip-content {
+  visibility:hidden; opacity:0;
+  position:absolute; z-index:300;
+  background:var(--surface2); border:1px solid var(--border);
+  color:var(--text); font-family:var(--font-mono); font-size:11px; font-weight:normal;
+  line-height:1.8; text-transform:none; letter-spacing:0;
+  padding:12px 16px; border-radius:6px; width:260px;
+  box-shadow:0 6px 24px rgba(0,0,0,.55);
+  pointer-events:none; transition:opacity .12s;
+  white-space:normal;
+}
+.tip-wrap:hover .tip-content { visibility:visible; opacity:1; }
+.tip-below .tip-content { top:calc(100% + 8px); left:50%; transform:translateX(-50%); }
+.tip-left  .tip-content { top:calc(100% + 6px); left:0; transform:none; }
+
 /* Tampermonkey live-feed panel */
 .tm-panel { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:20px 24px; margin-bottom:16px; }
 .tm-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px; }
@@ -157,6 +174,11 @@ footer { text-align:center; padding:24px; color:var(--dim); font-size:10px; lett
     then refresh this page.
   </div>
 
+  <div id="staleBanner" class="hidden" style="background:rgba(244,200,66,.08);border:1px solid rgba(244,200,66,.35);border-radius:6px;padding:12px 18px;margin-bottom:16px;font-size:12px;color:var(--accent);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+    <span>⏸ Stock data has not updated in 2.5+ minutes — Cookie Clicker may be idle, in the ascension screen, or the tab is closed.</span>
+    <button id="notifyBtn" class="btn-secondary" onclick="enableNotifications()" style="padding:6px 14px;font-size:9px;white-space:nowrap;flex-shrink:0">🔔 Enable alerts</button>
+  </div>
+
   <!-- PRIMARY: Tampermonkey live feed panel -->
   <div class="tm-panel" id="tmPanel">
     <div class="tm-header">
@@ -168,7 +190,6 @@ footer { text-align:center; padding:24px; color:var(--dim); font-size:10px; lett
       <div style="display:flex;gap:8px;align-items:center">
         <span id="lastUpdatedLabel" style="font-size:10px;color:var(--dim)"></span>
         <button class="btn-danger" id="clearHistoryBtn" onclick="clearHistory()" style="display:none">🗑 Clear History</button>
-        <button class="btn-secondary" onclick="loadDemo()" style="padding:7px 14px">📦 Demo</button>
       </div>
     </div>
 
@@ -231,7 +252,7 @@ footer { text-align:center; padding:24px; color:var(--dim); font-size:10px; lett
         <table>
           <thead><tr>
             <th>#</th><th>Ticker / Good</th><th>Current Price</th><th>Rolling Mean</th>
-            <th>Δ vs Mean</th><th>Mode</th><th>Momentum</th>
+<th>Δ vs Mean</th><th>Mode</th><th>Momentum</th>
             <th>Shares Owned</th><th>Avg Buy</th><th>Unrealized P&amp;L</th>
           </tr></thead>
           <tbody id="stocksBody"></tbody>
@@ -256,18 +277,20 @@ footer { text-align:center; padding:24px; color:var(--dim); font-size:10px; lett
         </div>
         <div class="threshold-row">
           <label>Window (saves)</label>
-          <input type="range" id="windowSize" min="2" max="20" step="1" value="5" oninput="updateThresholds()">
+          <input type="range" id="windowSize" min="2" max="200" step="1" value="5" oninput="updateThresholds()">
           <span id="windowSizeVal">5</span>
           <span class="history-count" id="historyNote"></span>
         </div>
       </div>
 
-      <div class="section-head">Trading Signals</div>
+<div class="section-head">Trading Signals</div>
       <div class="table-wrap">
         <table>
           <thead><tr>
             <th>#</th><th>Ticker / Good</th><th>Price</th><th>Owned</th><th>Avg Buy</th>
-            <th>Mean</th><th>Std Dev</th><th>Z-Score</th><th>Z-Bar</th>
+            <th>Mean</th><th>Std Dev</th>
+            <th>Z-Score <span class="tip-wrap tip-below" style="cursor:help;color:var(--muted);font-size:10px">(?)<span class="tip-content"><strong style="color:var(--accent)">Z = (price − mean) / std_dev</strong><br><br>How many standard deviations the current price is from its recent average. The further from 0, the more unusual the price.<br><br><span style="color:var(--green)">▲ BUY</span> — price far below average → likely to rise back<br><span style="color:var(--red)">▼ SELL</span> — price far above average → likely to fall back<br><span style="color:var(--accent)">◈ WATCH</span> — approaching a threshold<br><span style="color:var(--dim)">— HOLD</span> — price near average, no edge<br><br><span style="color:var(--muted)">Aim for 10+ saves before trusting signals.</span></span></span></th>
+            <th>Z-Bar</th>
             <th>Signal</th><th>Confidence</th><th>Notes</th>
           </tr></thead>
           <tbody id="signalsBody"></tbody>
@@ -340,10 +363,11 @@ footer { text-align:center; padding:24px; color:var(--dim); font-size:10px; lett
 /* ═══════════════════════════════════════════════════
    STATE
 ═══════════════════════════════════════════════════ */
-let currentData   = null;   // goods + overview from last analyze
-let currentSignals = [];    // signal rows from last analyze
-let priceHistory  = {};     // {ticker: {prices, timestamps}} from backend
+let currentData   = null;
+let currentSignals = [];
+let priceHistory  = {};
 let historyCount  = 0;
+let realizedPnL   = 0;
 
 let priceChartInst    = null;
 let zscoreChartInst   = null;
@@ -432,6 +456,11 @@ function clearStatus() {
   el.style.display = 'none';
 }
 
+function updateWindowMax() {
+  const slider = document.getElementById('windowSize');
+  slider.max = Math.max(2, historyCount);
+}
+
 function updateBadge() {
   const badge = document.getElementById('saveCountBadge');
   const btn   = document.getElementById('clearHistoryBtn');
@@ -510,18 +539,6 @@ async function clearHistory() {
   }
 }
 
-async function loadDemo() {
-  setStatus('⏳ Loading demo…', 'warn');
-  try {
-    const res  = await fetch('/api/demo', { method: 'POST' });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || 'Demo failed');
-    applySnapshot(json);
-    setStatus(`✓ Demo loaded — ${json.history_count} synthetic snapshots, Z-scores active!`, 'info');
-  } catch (e) {
-    setStatus('✕ ' + e.message, 'error');
-  }
-}
 
 async function exportHistory() {
   try {
@@ -568,9 +585,9 @@ function handleFileImport(event) {
 ═══════════════════════════════════════════════════ */
 function renderOverview() {
   const d = currentData;
-  const { version, timestamp, player_name, office_level, brokers, cookie_pool, goods } = d;
+  const { version, timestamp, player_name, office_level, brokers, broker_max, cookie_pool, goods } = d;
   const officeName  = OFFICE_LEVELS[office_level] || `Lvl ${office_level}`;
-  const maxBrokers  = (office_level + 1) * 5;
+  const maxBrokers  = broker_max || (office_level + 1) * 5;
   const commission  = Math.max(0, 3 - brokers * 0.1).toFixed(1);
   const totalOwned  = goods.reduce((s, g) => s + g.owned, 0);
   const totalValue  = goods.reduce((s, g) => s + g.owned * g.price, 0);
@@ -591,15 +608,15 @@ function renderOverview() {
     <div class="card"><div class="card-label">Brokers</div>
       <div class="card-value">${brokers}</div>
       <div class="card-sub">of ${maxBrokers} max · ${commission}% fee</div></div>
-    <div class="card"><div class="card-label">Cookie Reserve</div>
-      <div class="card-value" style="font-size:14px">${fmtLarge(cookie_pool)}</div>
-      <div class="card-sub">bank trading pool</div></div>
-    <div class="card"><div class="card-label">Shares Held</div>
+<div class="card"><div class="card-label">Shares Held</div>
       <div class="card-value">${totalOwned.toLocaleString()}</div>
       <div class="card-sub">mkt value ${fmt(totalValue)}</div></div>
     <div class="card ${totalPnL >= 0 ? 'green' : 'red'}"><div class="card-label">Unrealized P&L</div>
       <div class="card-value" style="font-size:14px;color:${totalPnL >= 0 ? 'var(--green)' : 'var(--red)'}">${fmt(totalPnL)}</div>
-      <div class="card-sub">vs avg buy price</div></div>
+      <div class="card-sub">open positions vs avg buy</div></div>
+    <div class="card ${realizedPnL >= 0 ? 'green' : 'red'}"><div class="card-label">Realized P&L</div>
+      <div class="card-value" style="font-size:14px;color:${realizedPnL >= 0 ? 'var(--green)' : 'var(--red)'}">${fmt(realizedPnL)}</div>
+      <div class="card-sub">from completed sells</div></div>
     <div class="card"><div class="card-label">Market Signals</div>
       <div class="card-value" style="font-size:14px">
         <span style="color:var(--green)">▲${rising}</span>
@@ -639,7 +656,7 @@ function renderOverview() {
       <td><div class="ticker">${g.ticker}</div><div class="good-name">${g.name}</div></td>
       <td><div class="price">${fmt(g.price)}</div></td>
       <td style="color:var(--dim);font-size:12px">${mean != null ? fmt(mean) : '<span style="color:var(--muted)">—</span>'}</td>
-      <td>${devPct !== null ? `<span class="${dCls}">${fmtPct(devPct)}</span>` : '<span style="color:var(--muted)">—</span>'}</td>
+<td>${devPct !== null ? `<span class="${dCls}">${fmtPct(devPct)}</span>` : '<span style="color:var(--muted)">—</span>'}</td>
       <td><span class="mode-badge ${g.mode_cls}">${g.mode_name}</span></td>
       <td><span class="${mCls}">${mIcon}</span> <span style="color:var(--dim);font-size:10px">${g.momentum}</span></td>
       <td>${ownedCell}</td>
@@ -676,7 +693,9 @@ function renderSignalsPanel() {
   document.getElementById('buyThreshVal').textContent  = buyT.toFixed(1);
   document.getElementById('sellThreshVal').textContent = '+' + sellT.toFixed(1);
   document.getElementById('windowSizeVal').textContent = window_;
-  document.getElementById('historyNote').textContent   = `(${historyCount} saves stored)`;
+  const validZ = Math.max(0, historyCount - window_ + 1);
+  document.getElementById('historyNote').textContent   =
+    `(${historyCount} saves · ${validZ} valid Z-score${validZ !== 1 ? 's' : ''}${validZ < 5 ? ' — window too large' : ''})`;
 
   const tbody = document.getElementById('signalsBody');
   tbody.innerHTML = '';
@@ -703,6 +722,12 @@ function renderSignalsPanel() {
     const zBarColor = signal === 'BUY' ? '#3dd68c' : signal === 'SELL' ? '#ff4d6a' : signal === 'WATCH' ? '#f4c842' : '#4a5a7a';
     const sigCls    = { BUY: 'sig-buy', SELL: 'sig-sell', WATCH: 'sig-watch', HOLD: 'sig-hold' }[signal];
     const sigIcon   = { BUY: '▲', SELL: '▼', WATCH: '◈', HOLD: '—' }[signal];
+    const sigExplanations = {
+      BUY:   `Price is statistically cheap — far below its recent average.<br>Mean reversion: stocks drift back toward the mean. Buy low, sell near the mean.`,
+      SELL:  `Price is statistically expensive — far above its recent average.<br>It tends to fall back toward the mean. Sell before it drops.`,
+      WATCH: `Price is approaching a threshold but hasn't crossed yet.<br>Monitor closely — could flip to BUY or SELL soon.`,
+      HOLD:  `Price is near its historical average.<br>No statistical edge in either direction — wait for a clearer signal.`,
+    }[signal];
 
     const ownedCell  = g.owned > 0
       ? `<span class="has-shares" style="font-family:var(--font-head)">${g.owned.toLocaleString()}</span>`
@@ -720,7 +745,7 @@ function renderSignalsPanel() {
       <td style="color:var(--dim);font-size:12px">${latestStd == null ? '—' : '$' + latestStd.toFixed(3)}</td>
       <td style="font-family:var(--font-head);font-size:13px;color:${zBarColor}">${latestZ == null ? '—' : latestZ.toFixed(3)}</td>
       <td><div class="zscore-bar"><div class="zscore-fill" style="width:${zBarPct}%;background:${zBarColor}"></div></div></td>
-      <td><span class="signal-badge ${sigCls}">${sigIcon} ${signal}</span></td>
+      <td><span class="tip-wrap tip-left"><span class="signal-badge ${sigCls}">${sigIcon} ${signal}</span><span class="tip-content" style="width:220px">${sigExplanations}</span></span></td>
       <td>
         <div style="font-size:11px;color:var(--dim)">${latestZ == null ? '—' : confidence + '%'}</div>
         <div style="height:3px;width:${confidence}%;background:${zBarColor};border-radius:2px;margin-top:3px"></div>
@@ -809,7 +834,7 @@ function renderCharts() {
       plugins: { legend: { display: false } },
       scales: {
         x: { ticks: { color: '#4a5a7a', font: { size: 9 } }, grid: { color: 'rgba(31,45,74,.4)' } },
-        y: { ticks: { color: '#4a5a7a', font: { size: 9 }, callback: v => v.toFixed(2) }, grid: { color: 'rgba(31,45,74,.4)' }, min: -4, max: 4 },
+        y: { ticks: { color: '#4a5a7a', font: { size: 9 }, callback: v => v.toFixed(2) }, grid: { color: 'rgba(31,45,74,.4)' } },
       },
     },
   });
@@ -856,7 +881,7 @@ function renderCharts() {
       plugins: { legend: { display: false } },
       scales: {
         x: { ticks: { color: '#4a5a7a', font: { size: 9 }, maxRotation: 45 }, grid: { color: 'rgba(31,45,74,.4)' } },
-        y: { ticks: { color: '#4a5a7a', font: { size: 9 }, callback: v => v.toFixed(1) }, grid: { color: 'rgba(31,45,74,.4)' }, min: -4, max: 4 },
+        y: { ticks: { color: '#4a5a7a', font: { size: 9 }, callback: v => v.toFixed(1) }, grid: { color: 'rgba(31,45,74,.4)' } },
       },
     },
   });
@@ -937,15 +962,25 @@ function setServerStatus(ok) {
 ═══════════════════════════════════════════════════ */
 let lastKnownTs   = 0;   // ms timestamp of last received snapshot
 let pollInterval  = null;
+let prevTmState   = 'waiting';
 
 function setTmStatus(state) {
   // state: 'waiting' | 'active' | 'stale'
-  const dot      = document.getElementById('tmDot');
-  const guide    = document.getElementById('tmSetupGuide');
-  const active   = document.getElementById('tmActiveInfo');
-  const label    = document.getElementById('lastUpdatedLabel');
+  const dot         = document.getElementById('tmDot');
+  const guide       = document.getElementById('tmSetupGuide');
+  const active      = document.getElementById('tmActiveInfo');
+  const label       = document.getElementById('lastUpdatedLabel');
+  const staleBanner = document.getElementById('staleBanner');
 
   dot.className = 'tm-dot ' + state;
+  staleBanner.classList.toggle('hidden', state !== 'stale');
+
+  if (state === 'stale' && prevTmState === 'active' && Notification.permission === 'granted') {
+    new Notification('Cookie Clicker Tracker — Data Stale', {
+      body: 'Stocks have not updated in 2.5+ minutes. Make sure Cookie Clicker is open and active.',
+    });
+  }
+  prevTmState = state;
 
   if (state === 'waiting') {
     guide.classList.remove('hidden');
@@ -961,6 +996,23 @@ function setTmStatus(state) {
   }
 }
 
+async function enableNotifications() {
+  if (!('Notification' in window)) {
+    alert('This browser does not support desktop notifications.');
+    return;
+  }
+  const perm = await Notification.requestPermission();
+  const btn  = document.getElementById('notifyBtn');
+  if (perm === 'granted') {
+    btn.textContent = '✓ Alerts on';
+    btn.style.color = 'var(--green)';
+    new Notification('Cookie Clicker Tracker', { body: 'Alerts enabled — you will be notified when stock data goes stale.' });
+  } else {
+    btn.textContent = '✕ Blocked';
+    btn.style.color = 'var(--red)';
+  }
+}
+
 // Refresh the "X seconds ago" label every 10 s without re-fetching
 setInterval(() => { if (lastKnownTs > 0) setTmStatus(Date.now() - lastKnownTs < 150_000 ? 'active' : 'stale'); }, 10_000);
 
@@ -972,9 +1024,11 @@ function applySnapshot(json) {
   currentSignals = json.signals  || [];
   priceHistory   = json.price_history || {};
   historyCount   = json.history_count || 0;
+  realizedPnL    = json.realized_pnl  ?? realizedPnL;
   lastKnownTs    = json.last_ts || json.data?.timestamp || Date.now();
 
   updateBadge();
+  updateWindowMax();
   renderAll();
   document.getElementById('results').classList.remove('hidden');
   setTmStatus(Date.now() - lastKnownTs < 150_000 ? 'active' : 'stale');

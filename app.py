@@ -2,12 +2,13 @@
 Cookie Clicker Stock Market Analyzer — Flask Backend
 Run: python app.py   then open http://localhost:8080
 """
-import json, os, base64, math, time, random
+import json, os, base64, math, time
 from flask import Flask, request, jsonify, render_template, send_from_directory
 from urllib.parse import unquote
 
 app = Flask(__name__)
-HISTORY_FILE = 'history.json'
+HISTORY_FILE   = 'history.json'
+PORTFOLIO_FILE = 'portfolio.json'
 
 
 @app.after_request
@@ -21,24 +22,24 @@ def add_cors(response):
 # Order MUST match Cookie Clicker's internal stock index (0-based).
 # If prices look wrong in-game, the index order here is the thing to adjust.
 GOODS = [
-    {'ticker': 'CRL',  'name': 'Cereals',         'base': 17.33},
-    {'ticker': 'CHCL', 'name': 'Chocolate',       'base':  8.18},
-    {'ticker': 'BUTR', 'name': 'Butter',          'base':  2.43},
-    {'ticker': 'SUGR', 'name': 'Sugar',           'base':  7.43},
-    {'ticker': 'NUTS', 'name': 'Nuts',            'base':  9.68},
-    {'ticker': 'CRML', 'name': 'Caramel',         'base':  5.51},
-    {'ticker': 'JAM',  'name': 'Jam',             'base':  9.46},
-    {'ticker': 'VALN', 'name': 'Vanilla',         'base':  4.88},
-    {'ticker': 'CINN', 'name': 'Cinnamon',        'base':  6.09},
-    {'ticker': 'CAKE', 'name': 'Cake',            'base': 12.43},
-    {'ticker': 'CNDY', 'name': 'Candy',           'base': 18.71},
-    {'ticker': 'DNUT', 'name': 'Donuts',          'base': 19.21},
-    {'ticker': 'PNUT', 'name': 'Peanut Butter',   'base':  4.87},
-    {'ticker': 'CREM', 'name': 'Cream',           'base':  9.72},
-    {'ticker': 'ICRC', 'name': 'Ice Cream',       'base': 14.77},
-    {'ticker': 'WAFR', 'name': 'Wafers',          'base': 15.12},
-    {'ticker': 'OATS', 'name': 'Oats',            'base':  1.90},
-    {'ticker': 'FCKE', 'name': 'Fortune Cookies', 'base': 10.00},
+    {'ticker': 'CRL', 'name': 'Cereals',        'base': 17.33},
+    {'ticker': 'CHC', 'name': 'Chocolate',       'base':  8.18},
+    {'ticker': 'BTR', 'name': 'Butter',          'base':  2.43},
+    {'ticker': 'SUG', 'name': 'Sugar',           'base':  7.43},
+    {'ticker': 'NUT', 'name': 'Nuts',            'base':  9.68},
+    {'ticker': 'SLT', 'name': 'Salt',            'base':  5.51},
+    {'ticker': 'VNL', 'name': 'Vanilla',         'base':  4.88},
+    {'ticker': 'EGG', 'name': 'Eggs',            'base':  3.14},
+    {'ticker': 'CNM', 'name': 'Cinnamon',        'base':  6.09},
+    {'ticker': 'CRM', 'name': 'Cream',           'base':  9.72},
+    {'ticker': 'JAM', 'name': 'Jam',             'base':  9.46},
+    {'ticker': 'WCH', 'name': 'White Chocolate', 'base': 12.43},
+    {'ticker': 'HNY', 'name': 'Honey',           'base': 18.71},
+    {'ticker': 'CKI', 'name': 'Cookies',         'base': 19.21},
+    {'ticker': 'RCP', 'name': 'Recipes',         'base':  4.87},
+    {'ticker': 'SCD', 'name': 'Spice',           'base': 14.77},
+    {'ticker': 'FBL', 'name': 'Flimflam',        'base': 15.12},
+    {'ticker': 'TFY', 'name': 'Toffee',          'base': 10.00},
 ]
 
 MODES = [
@@ -67,6 +68,25 @@ def load_history():
 def write_history(history):
     with open(HISTORY_FILE, 'w') as f:
         json.dump(history, f)
+
+
+def load_portfolio():
+    empty = {'positions': {}, 'realized_pnl': 0.0}
+    if not os.path.exists(PORTFOLIO_FILE):
+        return empty
+    try:
+        with open(PORTFOLIO_FILE) as f:
+            data = json.load(f)
+        if 'positions' not in data:
+            return {'positions': data, 'realized_pnl': 0.0}
+        return data
+    except Exception:
+        return empty
+
+
+def write_portfolio(portfolio):
+    with open(PORTFOLIO_FILE, 'w') as f:
+        json.dump(portfolio, f)
 
 # ─── SAVE PARSING ─────────────────────────────────────────────────────────────
 
@@ -150,7 +170,6 @@ def parse_minigame(minigame_raw):
         price  = _si(f[0] if f else '') / 100
         mode   = _si(f[1] if len(f) > 1 else '')
         mom    = _si(f[2] if len(f) > 2 else '')
-        sup    = _si(f[3] if len(f) > 3 else '')
         owned  = _si(f[5] if len(f) > 5 else '')
 
         # f[7] = floor(owned * avg_buy_price * 100)  — total cost in cents
@@ -172,7 +191,6 @@ def parse_minigame(minigame_raw):
             'mode_name': mode_info['label'],
             'mode_cls':  mode_info['cls'],
             'momentum':  mom,
-            'support':   sup,
             'owned':     owned,
             'avg_buy':   avg_buy,
             'change_pct': round(change_pct, 2),
@@ -285,37 +303,6 @@ def compute_signals(goods, history, buy_t, sell_t, window):
         })
     return out
 
-# ─── DEMO DATA ────────────────────────────────────────────────────────────────
-
-def _build_demo_history():
-    """Generate 10 fake history entries so Z-scores are immediately available."""
-    rng = random.Random(42)
-    history = []
-    now = int(time.time() * 1000)
-    goods_count = len(GOODS)
-
-    # Seed base prices with some random walk
-    prices = [g['base'] for g in GOODS]
-
-    for step in range(10):
-        ts = now - (10 - step) * 90_000  # 90-second intervals
-        snapshot_goods = []
-        for i, g in enumerate(GOODS):
-            # Simple random walk around base
-            prices[i] = max(0.01, prices[i] * rng.uniform(0.92, 1.08))
-            price_cents = int(prices[i] * 100)
-            owned = rng.randint(0, 300) if rng.random() > 0.6 else 0
-            snapshot_goods.append({
-                'ticker':   g['ticker'],
-                'price':    price_cents / 100,
-                'mode':     rng.randint(0, 5),
-                'momentum': rng.randint(-300, 300),
-                'support':  int(g['base'] * 100 * rng.uniform(0.8, 1.2)),
-                'owned':    owned,
-            })
-        history.append({'ts': ts, 'player_name': 'Demo Player', 'version': '2.058', 'goods': snapshot_goods})
-
-    return history
 
 # ─── ROUTES ───────────────────────────────────────────────────────────────────
 
@@ -365,7 +352,6 @@ def analyze():
                 'price':    g['price'],
                 'mode':     g['mode'],
                 'momentum': g['momentum'],
-                'support':  g['support'],
                 'owned':    g['owned'],
                 'avg_buy':  g['avg_buy'],
             } for g in data['goods']],
@@ -429,28 +415,55 @@ def inject():
     if not goods_raw:
         return jsonify({'error': 'No goods data provided'}), 400
 
+    portfolio  = load_portfolio()
+    positions  = portfolio['positions']
     goods = []
     for g in goods_raw:
         i    = int(g.get('idx', 0))
-        meta = GOODS[i] if i < len(GOODS) else {'ticker': g.get('ticker', f'G{i}'), 'name': g.get('name', f'Good {i}'), 'base': 1.0}
-        price      = float(g.get('price', 0))
-        owned      = int(g.get('owned', 0))
-        avg_buy    = float(g['avg_buy']) if g.get('avg_buy') and owned > 0 else None
-        actual_base = float(g['base']) if g.get('base') else meta['base']
-        chg     = (price - actual_base) / actual_base * 100 if actual_base > 0 else 0
+        meta = GOODS[i] if i < len(GOODS) else {'ticker': g.get('ticker', f'G{i}'), 'name': g.get('name', f'Good {i}')}
+        price   = float(g.get('price', 0))
+        owned   = int(g.get('owned', 0))
+        ticker  = g.get('ticker', meta['ticker'])
+
+        if owned > 0:
+            if ticker not in positions:
+                avg_buy = round(price, 4)
+                positions[ticker] = {'avg_buy': avg_buy, 'owned': owned}
+            else:
+                prev_avg   = positions[ticker]['avg_buy']
+                prev_owned = positions[ticker]['owned']
+                if owned > prev_owned:
+                    additional = owned - prev_owned
+                    avg_buy = round((prev_avg * prev_owned + price * additional) / owned, 4)
+                elif owned < prev_owned:
+                    # Partial sell — record realized P&L at snapshot price
+                    sold = prev_owned - owned
+                    portfolio['realized_pnl'] = round(portfolio['realized_pnl'] + (price - prev_avg) * sold, 4)
+                    avg_buy = prev_avg
+                else:
+                    avg_buy = prev_avg
+                positions[ticker] = {'avg_buy': avg_buy, 'owned': owned}
+        else:
+            if ticker in positions:
+                # Full sell — record realized P&L
+                prev = positions[ticker]
+                portfolio['realized_pnl'] = round(portfolio['realized_pnl'] + (price - prev['avg_buy']) * prev['owned'], 4)
+                del positions[ticker]
+            avg_buy = None
+
         pnl     = round((price - avg_buy) * owned, 4) if avg_buy and owned > 0 else None
         pnl_pct = round((price - avg_buy) / avg_buy * 100, 2) if avg_buy and avg_buy > 0 and owned > 0 else None
         mode    = int(g.get('mode', 0))
         goods.append({
-            'idx': i, 'ticker': g.get('ticker', meta['ticker']), 'name': g.get('name', meta['name']),
-            'base': actual_base, 'price': price,
-            'mode': mode,
+            'idx': i, 'ticker': ticker, 'name': g.get('name', meta['name']),
+            'price': price, 'mode': mode,
             'mode_name': MODES[mode]['label'] if mode < len(MODES) else f'Mode{mode}',
             'mode_cls':  MODES[mode]['cls']   if mode < len(MODES) else 'm-stable',
-            'momentum': int(g.get('momentum', 0)), 'support': int(g.get('support', 0)),
-            'owned': owned, 'avg_buy': avg_buy,
-            'change_pct': round(chg, 2), 'pnl': pnl, 'pnl_pct': pnl_pct,
+            'momentum': int(g.get('momentum', 0)),
+            'owned': owned, 'avg_buy': avg_buy, 'pnl': pnl, 'pnl_pct': pnl_pct,
         })
+
+    write_portfolio(portfolio)
 
     history = load_history()
     entry = {
@@ -459,9 +472,10 @@ def inject():
         'version':      str(body.get('version', '?')),
         'office_level': int(body.get('office_level', 0)),
         'brokers':      int(body.get('brokers', 0)),
+        'broker_max':   int(body.get('broker_max', 0)),
         'cookie_pool':  float(body.get('cookie_pool', 0)),
-        'goods': [{'ticker': g['ticker'], 'price': g['price'], 'base': g['base'],
-                   'mode': g['mode'], 'momentum': g['momentum'], 'support': g['support'],
+        'goods': [{'ticker': g['ticker'], 'price': g['price'],
+                   'mode': g['mode'], 'momentum': g['momentum'],
                    'owned': g['owned'], 'avg_buy': g['avg_buy']} for g in goods],
     }
 
@@ -474,7 +488,7 @@ def inject():
         history = history[-200:]
 
     write_history(history)
-    return jsonify({'success': True, 'history_count': len(history)})
+    return jsonify({'success': True, 'history_count': len(history), 'realized_pnl': portfolio['realized_pnl']})
 
 
 @app.route('/api/latest', methods=['GET'])
@@ -492,24 +506,20 @@ def latest():
         if i is None:
             i = 0
 
-        price      = g_entry['price']
-        owned      = g_entry.get('owned', 0)
-        avg_buy    = g_entry.get('avg_buy')
-        mode       = g_entry.get('mode', 0)
-        actual_base = g_entry.get('base') or meta['base']
-        chg     = (price - actual_base) / actual_base * 100 if actual_base > 0 else 0
+        price   = g_entry['price']
+        owned   = g_entry.get('owned', 0)
+        avg_buy = g_entry.get('avg_buy')
+        mode    = g_entry.get('mode', 0)
         pnl     = round((price - avg_buy) * owned, 4) if avg_buy and owned > 0 else None
         pnl_pct = round((price - avg_buy) / avg_buy * 100, 2) if avg_buy and avg_buy > 0 and owned > 0 else None
 
         goods.append({
             'idx': i, 'ticker': g_entry['ticker'], 'name': meta['name'],
-            'base': actual_base, 'price': price,
-            'mode': mode,
+            'price': price, 'mode': mode,
             'mode_name': MODES[mode]['label'] if mode < len(MODES) else f'Mode{mode}',
             'mode_cls':  MODES[mode]['cls']   if mode < len(MODES) else 'm-stable',
-            'momentum': g_entry.get('momentum', 0), 'support': g_entry.get('support', 0),
-            'owned': owned, 'avg_buy': avg_buy,
-            'change_pct': round(chg, 2), 'pnl': pnl, 'pnl_pct': pnl_pct,
+            'momentum': g_entry.get('momentum', 0),
+            'owned': owned, 'avg_buy': avg_buy, 'pnl': pnl, 'pnl_pct': pnl_pct,
         })
 
     data = {
@@ -518,6 +528,7 @@ def latest():
         'player_name':  last.get('player_name', 'Player'),
         'office_level': last.get('office_level', 0),
         'brokers':      last.get('brokers', 0),
+        'broker_max':   last.get('broker_max', 0),
         'cookie_pool':  last.get('cookie_pool', 0),
         'goods':        goods,
     }
@@ -525,12 +536,14 @@ def latest():
     signals       = compute_signals(goods, history, -2, 2, 5)
     price_history = build_price_history(history)
 
+    realized_pnl = load_portfolio().get('realized_pnl', 0.0)
     return jsonify({
         'data':          data,
         'signals':       signals,
         'price_history': price_history,
         'history_count': len(history),
         'last_ts':       last['ts'],
+        'realized_pnl':  realized_pnl,
     })
 
 
@@ -542,46 +555,9 @@ def get_history():
 @app.route('/api/history', methods=['DELETE'])
 def delete_history():
     write_history([])
+    write_portfolio({'positions': {}, 'realized_pnl': 0.0})
     return jsonify({'success': True})
 
-
-@app.route('/api/demo', methods=['POST'])
-def demo():
-    demo_history = _build_demo_history()
-    write_history(demo_history)
-
-    # Use the last entry as "current save"
-    last = demo_history[-1]
-    goods_out = []
-    for i, g in enumerate(last['goods']):
-        meta = GOODS[i]
-        owned = g['owned']
-        avg_buy = meta['base'] * 0.95 if owned > 0 else None
-        pnl = (g['price'] - avg_buy) * owned if avg_buy and owned > 0 else None
-        goods_out.append({
-            'idx': i, 'ticker': meta['ticker'], 'name': meta['name'],
-            'base': meta['base'], 'price': g['price'],
-            'mode': g['mode'], 'mode_name': MODES[g['mode']]['label'] if g['mode'] < len(MODES) else f"Mode{g['mode']}",
-            'mode_cls': MODES[g['mode']]['cls'] if g['mode'] < len(MODES) else 'm-stable',
-            'momentum': g['momentum'], 'support': g['support'],
-            'owned': owned, 'avg_buy': avg_buy,
-            'change_pct': round((g['price'] - meta['base']) / meta['base'] * 100, 2),
-            'pnl': round(pnl, 4) if pnl is not None else None,
-            'pnl_pct': round((g['price'] - avg_buy) / avg_buy * 100, 2) if avg_buy and avg_buy > 0 and owned > 0 else None,
-        })
-
-    data = {
-        'version': '2.058', 'timestamp': last['ts'], 'player_name': 'Demo Player',
-        'office_level': 3, 'brokers': 7, 'cookie_pool': 99328.88, 'goods': goods_out,
-    }
-
-    signals       = compute_signals(goods_out, demo_history, -2, 2, 5)
-    price_history = build_price_history(demo_history)
-
-    return jsonify({
-        'success': True, 'data': data, 'signals': signals,
-        'price_history': price_history, 'history_count': len(demo_history),
-    })
 
 
 if __name__ == '__main__':

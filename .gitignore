@@ -3,5 +3,6 @@ __pycache__/
 *.pyc
 *.pyo
 history.json
+portfolio.json
 .DS_Store
 .claude/

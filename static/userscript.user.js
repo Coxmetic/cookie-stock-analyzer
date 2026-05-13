@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cookie Clicker — Stock Auto-Tracker
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.2
 // @description  Sends live stock data to your local analyzer every 60 s. No save pasting needed.
 // @match        https://orteil.dashnet.org/cookieclicker/*
 // @match        http://orteil.dashnet.org/cookieclicker/*
@@ -40,19 +40,19 @@ function collectAndSend() {
         ticker:   g.symbol  || `G${i}`,
         name:     g.name    || `Good ${i}`,
         price:    g.val     || 0,
-        base:     g.base    || null,   // actual in-game base price
         mode:     g.mode    || 0,
         momentum: g.dur     || 0,
-        support:  g.sus     || 0,
         owned:    g.stock   || 0,
-        avg_buy:  (g.stock > 0 && g.buy > 0) ? g.buy : null,
+        avg_buy:  (g.stock > 0 && g.buy > 0) ? Math.round(g.buy / g.stock * 100) / 100 : null,
     }));
 
+    const peakGrandmas = Game.Objects['Grandma']?.highest || 0;
     const payload = {
         player_name:  Game.bakeryName || 'Player',
         version:      Game.version    || '?',
         office_level: M.officeLevel   || 0,
         brokers:      M.brokers       || 0,
+        broker_max:   1 + Math.floor(peakGrandmas / 10),
         cookie_pool:  M.cookiePool    || 0,
         goods,
     };
@@ -79,4 +79,4 @@ function collectAndSend() {
 setTimeout(collectAndSend, 5000);
 setInterval(collectAndSend, INTERVAL_SEC * 1000);
 
-console.log(`[CC Tracker] v1.1 loaded — sending every ${INTERVAL_SEC}s to ${ENDPOINT}`);
+console.log(`[CC Tracker] v1.2 loaded — sending every ${INTERVAL_SEC}s to ${ENDPOINT}`);
