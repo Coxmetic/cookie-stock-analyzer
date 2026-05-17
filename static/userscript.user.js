@@ -18,7 +18,7 @@ const MIN_INTERVAL_MS = 30_000;
 let lastSent = 0;
 
 function collectAndSend() {
-    // Must use unsafeWindow — TM sandbox isolates window from the page's Game object
+    // skal bruge unsafeWindow - TM's sandbox kan ikke se spillets Game objekt ellers
     const Game = unsafeWindow.Game;
     if (!Game || !Game.Objects?.Bank?.minigame) {
         console.log('[CC Tracker] Bank minigame not ready yet — will retry');

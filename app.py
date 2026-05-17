@@ -1,6 +1,5 @@
 """
-Cookie Clicker Stock Market Analyzer — Flask Backend
-Run: python app.py   then open http://localhost:8080
+Cookie Clicker aktie-analyzer - kør med: python app.py og åbn localhost:8080
 """
 import json, os, base64, math, time
 from flask import Flask, request, jsonify, render_template, send_from_directory
@@ -18,9 +17,9 @@ def add_cors(response):
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
     return response
 
-# ─── CONSTANTS ────────────────────────────────────────────────────────────────
-# Order MUST match Cookie Clicker's internal stock index (0-based).
-# If prices look wrong in-game, the index order here is the thing to adjust.
+# ─── AKTIER ───────────────────────────────────────────────────────────────────
+# rækkefølgen skal passe med Cookie Clickers interne liste
+# hvis priserne ser forkerte ud er det nok denne liste der er problemet
 GOODS = [
     {'ticker': 'CRL', 'name': 'Cereals',        'base': 17.33},
     {'ticker': 'CHC', 'name': 'Chocolate',       'base':  8.18},
@@ -37,9 +36,9 @@ GOODS = [
     {'ticker': 'HNY', 'name': 'Honey',           'base': 18.71},
     {'ticker': 'CKI', 'name': 'Cookies',         'base': 19.21},
     {'ticker': 'RCP', 'name': 'Recipes',         'base':  4.87},
-    {'ticker': 'SCD', 'name': 'Spice',           'base': 14.77},
-    {'ticker': 'FBL', 'name': 'Flimflam',        'base': 15.12},
-    {'ticker': 'TFY', 'name': 'Toffee',          'base': 10.00},
+    {'ticker': 'SBD', 'name': 'Subsidiaries',     'base': 14.77},
+    {'ticker': 'PBL', 'name': 'Publicists',       'base': 15.12},
+    {'ticker': 'YOU', 'name': 'Your Company',     'base': 10.00},
 ]
 
 MODES = [
@@ -53,7 +52,7 @@ MODES = [
 
 OFFICE_LEVELS = ['Tent', 'Shed', 'Warehouse', 'Office', 'Corporation', 'Headquarters']
 
-# ─── HISTORY STORAGE ──────────────────────────────────────────────────────────
+# ─── HISTORIK ─────────────────────────────────────────────────────────────────
 
 def load_history():
     if not os.path.exists(HISTORY_FILE):
@@ -88,7 +87,8 @@ def write_portfolio(portfolio):
     with open(PORTFOLIO_FILE, 'w') as f:
         json.dump(portfolio, f)
 
-# ─── SAVE PARSING ─────────────────────────────────────────────────────────────
+# ─── SAVE-FIL PARSING ─────────────────────────────────────────────────────────
+# bruges hvis man indsætter sin save manuelt istedet for tampermonkey
 
 def decode_save(raw):
     s = raw.strip()
@@ -172,7 +172,7 @@ def parse_minigame(minigame_raw):
         mom    = _si(f[2] if len(f) > 2 else '')
         owned  = _si(f[5] if len(f) > 5 else '')
 
-        # f[7] = floor(owned * avg_buy_price * 100)  — total cost in cents
+        # felt 7 = antal * gennesnits-pris * 100 (total udgift i cents)
         total_cost_cents = _si(f[7] if len(f) > 7 else '')
         avg_buy = (total_cost_cents / owned / 100) if owned > 0 and total_cost_cents > 0 else None
 
@@ -200,10 +200,9 @@ def parse_minigame(minigame_raw):
 
     return {'office_level': office_level, 'brokers': brokers, 'cookie_pool': cookie_pool, 'goods': goods}
 
-# ─── QUANT ANALYSIS ───────────────────────────────────────────────────────────
+# ─── Z-SCORE BEREGNINGER ──────────────────────────────────────────────────────
 
 def rolling_stats(prices, window):
-    """Returns list of (mean, std) or (None, None) where data is insufficient."""
     result = []
     for i in range(len(prices)):
         if i < window - 1:
@@ -258,7 +257,6 @@ def signal_for(z, buy_t, sell_t, mode, momentum):
 
 
 def build_price_history(history):
-    """Compact {ticker: {prices, timestamps}} from full history list."""
     series = {}
     for entry in history:
         for g in entry.get('goods', []):
@@ -304,7 +302,7 @@ def compute_signals(goods, history, buy_t, sell_t, window):
     return out
 
 
-# ─── ROUTES ───────────────────────────────────────────────────────────────────
+# ─── API ENDPOINTS ────────────────────────────────────────────────────────────
 
 @app.route('/')
 def index():
@@ -406,7 +404,6 @@ def status():
 
 @app.route('/api/inject', methods=['POST', 'OPTIONS'])
 def inject():
-    """Accept pre-parsed game data directly from the Tampermonkey userscript."""
     if request.method == 'OPTIONS':
         return '', 204
 
@@ -436,7 +433,7 @@ def inject():
                     additional = owned - prev_owned
                     avg_buy = round((prev_avg * prev_owned + price * additional) / owned, 4)
                 elif owned < prev_owned:
-                    # Partial sell — record realized P&L at snapshot price
+                    # delsalg - vi bruger snapshot-prisen, ikke den excakte salgspris
                     sold = prev_owned - owned
                     portfolio['realized_pnl'] = round(portfolio['realized_pnl'] + (price - prev_avg) * sold, 4)
                     avg_buy = prev_avg
@@ -445,7 +442,7 @@ def inject():
                 positions[ticker] = {'avg_buy': avg_buy, 'owned': owned}
         else:
             if ticker in positions:
-                # Full sell — record realized P&L
+                # helt solgt - nulstil positionen
                 prev = positions[ticker]
                 portfolio['realized_pnl'] = round(portfolio['realized_pnl'] + (price - prev['avg_buy']) * prev['owned'], 4)
                 del positions[ticker]
@@ -484,7 +481,7 @@ def inject():
     else:
         history.append(entry)
 
-    if len(history) > 200:   # higher cap for auto-tracking
+    if len(history) > 200:   # max 200 snapshots gemt
         history = history[-200:]
 
     write_history(history)
@@ -493,7 +490,6 @@ def inject():
 
 @app.route('/api/latest', methods=['GET'])
 def latest():
-    """Return the most recent snapshot as a full analysis object for auto-polling."""
     history = load_history()
     if not history:
         return jsonify({'data': None, 'history_count': 0, 'last_ts': None})
@@ -501,10 +497,13 @@ def latest():
     last = history[-1]
     goods = []
     for g_entry in last['goods']:
-        i    = next((j for j, m in enumerate(GOODS) if m['ticker'] == g_entry['ticker']), None)
-        meta = GOODS[i] if i is not None else {'ticker': g_entry['ticker'], 'name': g_entry['ticker'], 'base': 1.0}
-        if i is None:
-            i = 0
+        i = 0
+        meta = {'ticker': g_entry['ticker'], 'name': g_entry['ticker']}
+        for j, m in enumerate(GOODS):
+            if m['ticker'] == g_entry['ticker']:
+                i = j
+                meta = m
+                break
 
         price   = g_entry['price']
         owned   = g_entry.get('owned', 0)
