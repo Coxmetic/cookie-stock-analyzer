@@ -20,6 +20,7 @@ def add_cors(response):
 # ─── AKTIER ───────────────────────────────────────────────────────────────────
 # rækkefølgen skal passe med Cookie Clickers interne liste
 # hvis priserne ser forkerte ud er det nok denne liste der er problemet
+# TODO: base-priserne herunder er ikke rigtige, de skalerer med antal banker man har
 GOODS = [
     {'ticker': 'CRL', 'name': 'Cereals',        'base': 17.33},
     {'ticker': 'CHC', 'name': 'Chocolate',       'base':  8.18},
@@ -103,13 +104,13 @@ def decode_save(raw):
     try:
         return base64.b64decode(s).decode('utf-8', errors='replace')
     except Exception as e:
-        raise ValueError(f'Base64 decode failed — make sure you copied the full save string. ({e})')
+        raise ValueError(f'Base64 decode fejlede — er du sikker på du kopierede hele save-strengen? ({e})')
 
 
 def split_pipes(decoded):
     parts = decoded.split('|')
     if len(parts) < 6:
-        raise ValueError(f'Only {len(parts)} pipe sections — expected at least 6.')
+        raise ValueError(f'Kun {len(parts)} sektioner i save-filen — forventede mindst 6.')
     meta = (parts[2] or '').split(';')
 
     raw_ts = meta[0] if meta else ''
@@ -126,10 +127,10 @@ def split_pipes(decoded):
 def extract_bank(building_section):
     buildings = building_section.split(';')
     if len(buildings) < 6:
-        raise ValueError(f'Only {len(buildings)} buildings found — is the Bank unlocked?')
+        raise ValueError(f'Kun {len(buildings)} bygninger fundet — er Bank bygningen låst op?')
     fields = buildings[5].split(',')
     if len(fields) < 5:
-        raise ValueError('Bank data too short — Stock Market may not be unlocked yet.')
+        raise ValueError('Bank data for kort — er aktiemarkedet låst op?')
     return {
         'bank_owned':   int(fields[0]) if fields[0].isdigit() else 0,
         'minigame_raw': ','.join(fields[4:]),
@@ -149,7 +150,7 @@ def parse_minigame(minigame_raw):
     try:
         space_idx = minigame_raw.index(' ')
     except ValueError:
-        raise ValueError('No space separator in minigame data.')
+        raise ValueError('Kunne ikke finde separator i minigame data.')
 
     header       = minigame_raw[:space_idx].split(':')
     office_level = _si(header[0] if header else '')
@@ -160,7 +161,7 @@ def parse_minigame(minigame_raw):
     good_chunks = [c.strip() for c in chunks[:-1] if c.strip()]
 
     if not good_chunks:
-        raise ValueError('No goods found in minigame data.')
+        raise ValueError('Ingen aktier fundet i minigame data.')
 
     goods = []
     for i, chunk in enumerate(good_chunks):
@@ -201,6 +202,7 @@ def parse_minigame(minigame_raw):
     return {'office_level': office_level, 'brokers': brokers, 'cookie_pool': cookie_pool, 'goods': goods}
 
 # ─── Z-SCORE BEREGNINGER ──────────────────────────────────────────────────────
+# TODO: kunne være fedt at sende en notifikation når en aktie rammer -2 eller +2
 
 def rolling_stats(prices, window):
     result = []

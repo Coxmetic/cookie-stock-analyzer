@@ -1,14 +1,10 @@
 #!/bin/bash
 cd "$(dirname "$0")"
 
-echo ""
-echo "  🍪  Cookie Clicker Stock Analyzer"
-echo "  ──────────────────────────────────"
-echo "  Starting server on http://localhost:8080"
-echo "  Keep this window OPEN — closing it stops the server."
-echo ""
+echo "starter server på http://localhost:8080"
+echo "lad dette vindue stå åbent ellers stopper serveren"
 
-# Open browser after 1.5 seconds (gives Flask time to start)
+# åbn browser efter 1.5 sek så flask når at starte
 (sleep 1.5 && open http://localhost:8080) &
 
 python3 app.py

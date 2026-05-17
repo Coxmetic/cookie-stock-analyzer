@@ -2,7 +2,7 @@
 // @name         Cookie Clicker — Stock Auto-Tracker
 // @namespace    http://tampermonkey.net/
 // @version      1.2
-// @description  Sends live stock data to your local analyzer every 60 s. No save pasting needed.
+// @description  Henter aktiedata fra Cookie Clicker og sender det til vores analyser hvert 60 sek.
 // @match        https://orteil.dashnet.org/cookieclicker/*
 // @match        http://orteil.dashnet.org/cookieclicker/*
 // @grant        GM_xmlhttpRequest
@@ -18,7 +18,7 @@ const MIN_INTERVAL_MS = 30_000;
 let lastSent = 0;
 
 function collectAndSend() {
-    // skal bruge unsafeWindow - TM's sandbox kan ikke se spillets Game objekt ellers
+    // skal bruge unsafeWindow - TMs sandbox kan ikke se spillets Game objekt ellers
     const Game = unsafeWindow.Game;
     if (!Game || !Game.Objects?.Bank?.minigame) {
         console.log('[CC Tracker] Bank minigame not ready yet — will retry');
@@ -27,14 +27,16 @@ function collectAndSend() {
 
     const M = Game.Objects.Bank.minigame;
     if (!M.goodsById || !M.goodsById.length) {
-        console.log('[CC Tracker] goodsById empty — will retry');
+        console.log('[CC Tracker] ingen aktier fundet endnu, prøver igen');
         return;
     }
 
+    // vent mindst 30 sek mellem hvert send
     const now = Date.now();
     if (now - lastSent < MIN_INTERVAL_MS) return;
     lastSent = now;
 
+    // hent data fra alle aktier
     const goods = M.goodsById.map((g, i) => ({
         idx:      i,
         ticker:   g.symbol  || `G${i}`,
@@ -46,6 +48,7 @@ function collectAndSend() {
         avg_buy:  (g.stock > 0 && g.buy > 0) ? Math.round(g.buy / g.stock * 100) / 100 : null,
     }));
 
+    // max mæglere = 1 + (antal bedste bedste mormødre / 10)
     const peakGrandmas = Game.Objects['Grandma']?.highest || 0;
     const payload = {
         player_name:  Game.bakeryName || 'Player',
